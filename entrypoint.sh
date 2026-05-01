@@ -25,5 +25,5 @@ chown "$HOST_UID:$HOST_GID" /zotero-data/profile/user.js
 mkdir -p /run/dbus
 dbus-daemon --system --fork 2>/dev/null || true
 
-echo "==> Launching Zotero..."
-exec gosu "$HOST_UID" /opt/zotero/zotero -profile /zotero-data/profile -no-remote --no-sandbox 2>&1
+echo "==> Launching researcher-deskless..."
+exec gosu "$HOST_UID" /launcher.sh 2>&1

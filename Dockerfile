@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     dbus-x11 \
     libcanberra-gtk3-module \
     pciutils \
+    python3 \
+    python3-tk \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -q "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64" \
@@ -24,10 +26,14 @@ RUN wget -q "https://www.zotero.org/download/client/dl?channel=release&platform=
 
 RUN chmod u+s /opt/zotero/zotero-sandbox 2>/dev/null || true
 
-RUN mkdir -p /zotero-data
+RUN mkdir -p /zotero-data /opt/launcher
+
+COPY launcher.py /opt/launcher/launcher.py
+COPY launcher.sh /launcher.sh
+RUN chmod +x /launcher.sh
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/opt/zotero/zotero", "-profile", "/zotero-data/profile", "-no-remote", "--no-sandbox"]
+CMD ["/launcher.sh"]
