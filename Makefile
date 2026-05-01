@@ -23,7 +23,7 @@ run:
 		fi \
 	fi
 	xhost +local:docker
-	PUID=$(PUID) PGID=$(PGID) docker compose up
+	PUID=$(PUID) PGID=$(PGID) docker compose up && PUID=$(PUID) PGID=$(PGID) docker compose down
 
 build:
 	PUID=$(PUID) PGID=$(PGID) docker compose build --no-cache
