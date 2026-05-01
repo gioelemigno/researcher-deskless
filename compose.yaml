@@ -1,0 +1,26 @@
+services:
+  zotero:
+    build: .
+    image: zotero-portable
+    container_name: zotero
+    environment:
+      - DISPLAY=${DISPLAY}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - MOZ_DISABLE_RDD_SANDBOX=1
+      - MOZ_DISABLE_CONTENT_SANDBOX=1
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - GALLIUM_DRIVER=llvmpipe
+      - MOZ_WEBRENDER=0
+      - MOZ_ACCELERATED=0
+      - GDK_BACKEND=x11
+      - MOZ_X11_EGL=0
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ./zotero-data:/zotero-data
+    network_mode: host
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+    restart: "no"
