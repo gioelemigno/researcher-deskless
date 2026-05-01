@@ -1,6 +1,7 @@
 SCRIPT_DIR := $(shell pwd)
 PUID := $(shell id -u)
 PGID := $(shell id -g)
+DATA_DIR := data
 
 .PHONY: help run build
 
@@ -13,6 +14,9 @@ help:
 	@echo "  help    Show this help message"
 
 run:
+	@if [ ! -d "$(DATA_DIR)" ]; then \
+		mkdir -p "$(DATA_DIR)"; \
+	fi
 	@if ! docker image inspect zotero-portable:latest &>/dev/null; then \
 		if [ -f $(SCRIPT_DIR)/zotero.tar.gz ]; then \
 			echo "Loading Zotero image from tar..."; \

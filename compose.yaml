@@ -17,7 +17,8 @@ services:
       - MOZ_X11_EGL=0
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
-      - ./zotero-data:/zotero-data
+      - ./data/zotero-data:/zotero-data
+      - ./data/home:/home/zotero
     network_mode: host
     security_opt:
       - seccomp:unconfined
