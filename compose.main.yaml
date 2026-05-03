@@ -1,0 +1,17 @@
+services:
+  main:
+    build: .
+    image: researcher-deskless
+    container_name: researcher-deskless
+    environment:
+      - DISPLAY=${DISPLAY}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    network_mode: host
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+    restart: "no"

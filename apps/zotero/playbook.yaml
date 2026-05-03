@@ -1,0 +1,110 @@
+---
+- name: Install Zotero
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    # - name: Create Zotero data directory
+    #   file:
+    #     path: /data/zotero
+    #     state: directory
+    #     mode: '0755'
+    - name: Install apt dependencies
+      apt:
+        name:
+          - wget
+          - curl
+          - bzip2
+          - xz-utils
+          - libgtk-3-0
+          - libdbus-glib-1-2
+          - libasound2
+          - libx11-xcb1
+          - libxtst6
+          - fonts-liberation
+          - ca-certificates
+          - libcap2-bin
+          - libpci3
+          - libegl1
+          - libgl1-mesa-glx
+          - libgl1
+          - libcanberra-gtk3-module
+          - pciutils
+        state: present
+        update_cache: yes
+
+    - name: Download Zotero
+      get_url:
+        url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64"
+        dest: /tmp/zotero.tar.xz
+
+    - name: Extract Zotero
+      unarchive:
+        src: /tmp/zotero.tar.xz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Move to standard path
+      command: mv /opt/Zotero_linux-x86_64 /opt/zotero
+      args:
+        creates: /opt/zotero
+
+    - name: Fix sandbox permissions
+      file:
+        path: /opt/zotero/zotero-sandbox
+        mode: u+s
+      ignore_errors: yes
+
+    - name: Cleanup
+      file:
+        path: /tmp/zotero.tar.xz
+        state: absent
+
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/zotero.json
+        content: |
+          {
+            "name": "Zotero",
+            "cmd": ["/opt/zotero/zotero", "-profile", "/data/zotero/profile", "-no-remote", "--no-sandbox"],
+            "color": "#CC2936",
+            "env": {
+              "MOZ_DISABLE_RDD_SANDBOX": "1",
+              "MOZ_DISABLE_CONTENT_SANDBOX": "1",
+              "LIBGL_ALWAYS_SOFTWARE": "1",
+              "GALLIUM_DRIVER": "llvmpipe",
+              "MOZ_WEBRENDER": "0",
+              "MOZ_ACCELERATED": "0",
+              "GDK_BACKEND": "x11",
+              "MOZ_X11_EGL": "0"
+            }
+          }
+
+- name: Setup Zotero at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Create Zotero directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/zotero/profile
+        - /data/zotero/storage
+
+    - name: Write user.js
+      copy:
+        dest: /data/zotero/profile/user.js
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          user_pref("gfx.webrender.all", false);
+          user_pref("gfx.webrender.enabled", false);
+          user_pref("layers.acceleration.disabled", true);
+          user_pref("gfx.canvas.azure.accelerated", false);
+          user_pref("extensions.zotero.dataDir", "/data/zotero/storage");
+          user_pref("extensions.zotero.useDataDir", true);
