@@ -4,11 +4,6 @@
   connection: local
   tags: build
   tasks:
-    # - name: Create Zotero data directory
-    #   file:
-    #     path: /data/zotero
-    #     state: directory
-    #     mode: '0755'
     - name: Install apt dependencies
       apt:
         name:
