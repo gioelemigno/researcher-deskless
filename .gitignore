@@ -1,2 +1,4 @@
 data/
-zotero.tar.gz
+*.tar.gz
+.last-build
+/compose.yaml

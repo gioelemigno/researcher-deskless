@@ -1,20 +1,20 @@
 import tkinter as tk
-from tkinter import ttk
 import subprocess
 import threading
+import json
+import os
 
-APPS = [
-    {
-        "name": "Zotero",
-        "cmd": ["/opt/zotero/zotero", "-profile", "/zotero-data/profile", "-no-remote", "--no-sandbox"],
-        "color": "#CC2936",
-    },
-    {
-        "name": "Obsidian",
-        "cmd": ["/opt/obsidian/obsidian", "--no-sandbox"],
-        "color": "#7B68EE",
-    },
-]
+APPS_DIR = "/opt/launcher/apps"
+
+def load_apps():
+    apps = []
+    if not os.path.exists(APPS_DIR):
+        return apps
+    for f in sorted(os.listdir(APPS_DIR)):
+        if f.endswith(".json"):
+            with open(os.path.join(APPS_DIR, f)) as fh:
+                apps.append(json.load(fh))
+    return apps
 
 class Launcher(tk.Tk):
     def __init__(self):
@@ -23,10 +23,10 @@ class Launcher(tk.Tk):
         self.resizable(False, False)
         self.configure(bg="#1e1e2e")
         self.processes = {}
+        self.apps = load_apps()
         self._build_ui()
 
     def _build_ui(self):
-        # Header
         tk.Label(
             self,
             text="researcher-deskless",
@@ -44,14 +44,13 @@ class Launcher(tk.Tk):
             font=("sans-serif", 9),
         ).pack()
 
-        # App buttons
         btn_frame = tk.Frame(self, bg="#1e1e2e", pady=20, padx=30)
         btn_frame.pack()
 
         self.buttons = {}
         self.status_labels = {}
 
-        for app in APPS:
+        for app in self.apps:
             frame = tk.Frame(btn_frame, bg="#313244", padx=16, pady=16)
             frame.pack(side=tk.LEFT, padx=10)
 
@@ -88,10 +87,9 @@ class Launcher(tk.Tk):
             btn.pack()
             self.buttons[app["name"]] = btn
 
-        # Footer
         tk.Label(
             self,
-            text="Apps run independently — close this window to exit all",
+            text="Close this window to exit all apps",
             bg="#1e1e2e",
             fg="#45475a",
             font=("sans-serif", 8),
@@ -100,8 +98,6 @@ class Launcher(tk.Tk):
 
     def _launch(self, app):
         name = app["name"]
-
-        # If already running, do nothing
         if name in self.processes and self.processes[name].poll() is None:
             self._set_status(name, "already running", "#f9e2af")
             return
@@ -111,8 +107,12 @@ class Launcher(tk.Tk):
 
         def run():
             try:
+                env = os.environ.copy()
+                env.update(app.get("env", {}))
+
                 proc = subprocess.Popen(
                     app["cmd"],
+                    env=env,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
@@ -134,11 +134,10 @@ class Launcher(tk.Tk):
         self.status_labels[name].config(text=text, fg=color)
 
     def on_close(self):
-        for name, proc in self.processes.items():
+        for proc in self.processes.values():
             if proc.poll() is None:
                 proc.terminate()
         self.destroy()
-
 
 if __name__ == "__main__":
     app = Launcher()
