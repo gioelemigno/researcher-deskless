@@ -11,7 +11,7 @@ help:
 	@echo "Targets:"
 	@echo "  run       Build if config changed, then start the launcher"
 	@echo "  build     Generate compose, build image and save to tar"
-	@echo "  generate  Generate docker-compose.yml from config.yaml"
+	@echo "  generate  Generate compose.yaml from config.yaml"
 	@echo "  help      Show this help message"
 
 generate:
