@@ -1,0 +1,123 @@
+---
+- name: Install terminal
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Install terminator
+      apt:
+        name:
+          - terminator
+        state: present
+        update_cache: yes
+
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/terminal.json
+        content: |
+          {
+            "name": "Terminal",
+            "cmd": ["terminator", "--config", "/home/researcher/.config/terminator/config"],
+            "color": "#313244",
+            "env": {
+              "TERM": "xterm-256color",
+              "COLORTERM": "truecolor",
+              "BASH_ENV": "/home/researcher/.bashrc"
+            }
+          }
+
+- name: Setup terminal at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Create terminator config directory
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /home/researcher/.config
+        - /home/researcher/.config/terminator
+
+    - name: Write bashrc
+      copy:
+        dest: /home/researcher/.bashrc
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          export INPUTRC=/home/researcher/.inputrc
+          export TERM=xterm-256color
+
+          RED='\[\e[0;31m\]'
+          GREEN='\[\e[0;32m\]'
+          BLUE='\[\e[0;34m\]'
+          CYAN='\[\e[0;36m\]'
+          RESET='\[\e[0m\]'
+
+          PS1="${GREEN}\u${RESET}@${CYAN}deskless${RESET}:${BLUE}\w${RESET}\$ "
+
+          alias ls='ls --color=auto'
+          alias ll='ls -lah --color=auto'
+          alias grep='grep --color=auto'
+
+    - name: Write bash_profile to source bashrc on login shell
+      copy:
+        dest: /home/researcher/.bash_profile
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          if [ -f ~/.bashrc ]; then
+            source ~/.bashrc
+          fi
+
+    - name: Write inputrc
+      copy:
+        dest: /home/researcher/.inputrc
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          set input-meta on
+          set output-meta on
+          set convert-meta off
+          "\e[A": history-search-backward
+          "\e[B": history-search-forward
+          "\e[C": forward-char
+          "\e[D": backward-char
+          "\e[1;5C": forward-word
+          "\e[1;5D": backward-word
+          TAB: complete
+
+    - name: Write terminator config
+      copy:
+        dest: /home/researcher/.config/terminator/config
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          [global_config]
+            title_transmit_bg_color = "#89b4fa"
+            title_receive_bg_color = "#a6e3a1"
+            title_inactive_bg_color = "#313244"
+          [keybindings]
+          [profiles]
+            [[default]]
+              background_color = "#1e1e2e"
+              foreground_color = "#cdd6f4"
+              cursor_color = "#f5e0dc"
+              font = Monospace 11
+              use_system_font = False
+              palette = "#45475a:#f38ba8:#a6e3a1:#f9e2af:#89b4fa:#cba6f7:#89dceb:#bac2de:#585b70:#f38ba8:#a6e3a1:#f9e2af:#89b4fa:#cba6f7:#89dceb:#a6adc8"
+              scrollbar_position = hidden
+              use_custom_command = True
+              custom_command = bash --login
+          [layouts]
+            [[default]]
+              [[[window0]]]
+                type = Window
+                parent = ""
+              [[[child1]]]
+                type = Terminal
+                parent = window0
+          [plugins]

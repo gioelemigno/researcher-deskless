@@ -1,0 +1,89 @@
+---
+- name: Install Obsidian
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Create Obsidian data directory
+      file:
+        path: /data/obsidian
+        state: directory
+        mode: '0755'
+
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - libnspr4
+          - libnss3
+          - libatk1.0-0
+          - libatk-bridge2.0-0
+          - libcups2
+          - libdrm2
+          - libgtk-3-0
+          - libgbm1
+          - libasound2
+          - dconf-cli
+        state: present
+        update_cache: yes
+
+    - name: Get latest Obsidian version
+      shell: |
+        curl -sI https://github.com/obsidianmd/obsidian-releases/releases/latest \
+        | grep -i location \
+        | grep -oP '[0-9]+\.[0-9]+\.[0-9]+'
+      register: obsidian_version
+
+    - name: Debug version
+      debug:
+        msg: "Latest Obsidian version: {{ obsidian_version.stdout }}"
+
+    - name: Download Obsidian AppImage
+      get_url:
+        url: "https://github.com/obsidianmd/obsidian-releases/releases/download/v{{ obsidian_version.stdout }}/Obsidian-{{ obsidian_version.stdout }}.AppImage"
+        dest: /tmp/obsidian.AppImage
+        mode: '0755'
+
+    - name: Extract AppImage
+      shell: |
+        cd /opt
+        /tmp/obsidian.AppImage --appimage-extract
+        mv /opt/squashfs-root /opt/obsidian
+        chmod -R a+rX /opt/obsidian
+        chmod +x /opt/obsidian/AppRun
+
+    - name: Cleanup AppImage
+      file:
+        path: /tmp/obsidian.AppImage
+        state: absent
+
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/obsidian.json
+        content: |
+          {
+            "name": "Obsidian",
+            "cmd": ["/opt/obsidian/AppRun", "--no-sandbox", "--enable-unsafe-swiftshader"],
+            "color": "#7B68EE",
+            "env": {
+              "APPDIR": "/opt/obsidian",
+              "XDG_CONFIG_HOME": "/data/obsidian/config"
+            }
+          }
+
+- name: Setup Obsidian at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Create Obsidian directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/obsidian
+        - /data/obsidian/config
+        - /data/obsidian/vault

@@ -3,4 +3,5 @@
 
 apps:
   - zotero
-  # - obsidian
+  - obsidian
+  - terminal
