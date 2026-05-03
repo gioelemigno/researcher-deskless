@@ -15,7 +15,7 @@ help:
 	@echo "  help      Show this help message"
 
 generate:
-	@echo "==> Generating docker-compose.yml..."
+	@echo "==> Generating compose.yaml..."
 	@python3 $(SCRIPT_DIR)/utils/generate-compose.py
 
 build: generate

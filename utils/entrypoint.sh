@@ -7,8 +7,8 @@ HOST_GID=${PGID:-1000}
 echo "==> Running as PUID=$HOST_UID PGID=$HOST_GID"
 echo "==> DISPLAY=$DISPLAY"
 
-groupadd -f -g "$HOST_GID" zotero
-id -u zotero &>/dev/null || useradd -u "$HOST_UID" -g "$HOST_GID" -m zotero
+groupadd -f -g "$HOST_GID" researcher
+id -u researcher &>/dev/null || useradd -u "$HOST_UID" -g "$HOST_GID" -m researcher
 
 mkdir -p /run/dbus
 dbus-daemon --system --fork 2>/dev/null || true
