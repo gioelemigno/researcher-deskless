@@ -1,4 +1,4 @@
 data/
 *.tar.gz
 .last-build
-./compose.yaml
+/compose.yaml

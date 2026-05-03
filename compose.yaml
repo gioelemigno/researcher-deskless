@@ -1,3 +1,0 @@
-include:
-- compose.main.yaml
-- apps/zotero/compose.yaml
