@@ -88,6 +88,7 @@
         group: "{{ lookup('env', 'PGID') }}"
         mode: '0755'
       loop:
+        - /data/zotero
         - /data/zotero/profile
         - /data/zotero/storage
 
