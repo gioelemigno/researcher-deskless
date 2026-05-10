@@ -74,12 +74,6 @@
               "MOZ_X11_EGL": "0"
             }
           }
-
-- name: Setup Zotero at startup
-  hosts: localhost
-  connection: local
-  tags: startup
-  tasks:
     - name: Create Zotero directories
       file:
         path: "{{ item }}"
@@ -104,3 +98,36 @@
           user_pref("gfx.canvas.azure.accelerated", false);
           user_pref("extensions.zotero.dataDir", "/data/zotero/storage");
           user_pref("extensions.zotero.useDataDir", true);
+
+- name: Setup Zotero at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from Zotero"
+    # - name: Create Zotero directories
+    #   file:
+    #     path: "{{ item }}"
+    #     state: directory
+    #     owner: "{{ lookup('env', 'PUID') }}"
+    #     group: "{{ lookup('env', 'PGID') }}"
+    #     mode: '0755'
+    #   loop:
+    #     - /data/zotero
+    #     - /data/zotero/profile
+    #     - /data/zotero/storage
+
+    # - name: Write user.js
+    #   copy:
+    #     dest: /data/zotero/profile/user.js
+    #     owner: "{{ lookup('env', 'PUID') }}"
+    #     group: "{{ lookup('env', 'PGID') }}"
+    #     content: |
+    #       user_pref("gfx.webrender.all", false);
+    #       user_pref("gfx.webrender.enabled", false);
+    #       user_pref("layers.acceleration.disabled", true);
+    #       user_pref("gfx.canvas.azure.accelerated", false);
+    #       user_pref("extensions.zotero.dataDir", "/data/zotero/storage");
+    #       user_pref("extensions.zotero.useDataDir", true);

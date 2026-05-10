@@ -71,19 +71,35 @@
             }
           }
 
-- name: Setup Obsidian at startup
-  hosts: localhost
-  connection: local
-  tags: startup
-  tasks:
     - name: Create Obsidian directories
       file:
         path: "{{ item }}"
         state: directory
-        owner: "{{ lookup('env', 'PUID') }}"
-        group: "{{ lookup('env', 'PGID') }}"
+        owner: "{{ lookup('env', 'PUID') | int }}"
+        group: "{{ lookup('env', 'PGID') | int }}"
         mode: '0755'
       loop:
         - /data/obsidian
         - /data/obsidian/config
         - /data/obsidian/vault
+
+- name: Setup Obsidian at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from Obsidian"
+
+    # - name: Create Obsidian directories
+    #   file:
+    #     path: "{{ item }}"
+    #     state: directory
+    #     owner: "{{ lookup('env', 'PUID') }}"
+    #     group: "{{ lookup('env', 'PGID') }}"
+    #     mode: '0755'
+    #   loop:
+    #     - /data/obsidian
+    #     - /data/obsidian/config
+    #     - /data/obsidian/vault

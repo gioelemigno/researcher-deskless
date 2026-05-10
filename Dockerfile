@@ -1,6 +1,12 @@
 FROM ubuntu:22.04
-
 ENV DEBIAN_FRONTEND=noninteractive
+
+ARG PUID=err
+ARG PGID=err
+
+ENV PUID=${PUID}
+ENV PGID=${PGID}
+
 RUN apt-get update && apt-get install -y \
     gosu \
     python3 \
