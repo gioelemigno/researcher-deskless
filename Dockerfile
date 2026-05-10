@@ -1,6 +1,12 @@
 FROM ubuntu:22.04
-
 ENV DEBIAN_FRONTEND=noninteractive
+
+ARG PUID=err
+ARG PGID=err
+
+ENV PUID=${PUID}
+ENV PGID=${PGID}
+
 RUN apt-get update && apt-get install -y \
     gosu \
     python3 \
@@ -9,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     python3-apt \
     ansible \
     dbus-x11 \
+    fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
 COPY config.yaml /build/config.yaml

@@ -1,6 +1,6 @@
 SCRIPT_DIR := $(shell pwd)
-PUID := $(shell id -u)
-PGID := $(shell id -g)
+PUID := 1000 #$(shell id -u)
+PGID := 1000 #$(shell id -g)
 SENTINEL := $(SCRIPT_DIR)/.last-build
 
 .PHONY: help run build generate check-rebuild

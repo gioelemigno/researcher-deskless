@@ -1,14 +1,19 @@
 services:
   main:
-    build: .
+    build: 
+      context: .
+      args:
+        - PUID=${PUID:?err}
+        - PGID=${PGID:?err}
     image: researcher-deskless
     container_name: researcher-deskless
     environment:
-      - DISPLAY=${DISPLAY}
-      - PUID=${PUID}
-      - PGID=${PGID}
+      - DISPLAY=${DISPLAY:?err}
+      - PUID=${PUID:?err}
+      - PGID=${PGID:?err}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
+      # - ./data/home:/home/researcher
     network_mode: host
     security_opt:
       - seccomp:unconfined

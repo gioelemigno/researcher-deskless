@@ -60,7 +60,7 @@ researcher-deskless/
 ### 1. Clone the repository onto your USB drive
 
 ```bash
-git clone https://github.com/yourusername/researcher-deskless.git /media/$USER/your-drive/
+git clone https://github.com/gioelemigno/researcher-deskless.git /media/$USER/your-drive/
 cd /media/$USER/your-drive/
 ```
 
