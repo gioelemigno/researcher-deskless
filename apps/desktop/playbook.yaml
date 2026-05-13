@@ -1,0 +1,163 @@
+---
+- name: Install XFCE Desktop Environment
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Install XFCE core components
+      apt:
+        name:
+          # Core WM and desktop
+          - xfwm4
+          - xfce4-panel
+          - xfdesktop4
+          - xfce4-session
+          # Settings and utilities
+          - xfce4-settings
+          - xfconf
+          # File manager
+          - thunar
+          # Terminal (useful inside the DE)
+          - xfce4-terminal
+          # Panel plugins
+          - xfce4-whiskermenu-plugin
+          - xfce4-pulseaudio-plugin
+          - xfce4-clipman-plugin
+          # Theme
+          - materia-gtk-theme
+          - papirus-icon-theme
+          # Fonts
+          - fonts-noto
+          - fonts-noto-color-emoji
+        state: present
+        update_cache: yes
+
+    - name: Create XFCE config directory
+      file:
+        path: /data/desktop/config/xfce4
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+
+    - name: Create xfconf config directory
+      file:
+        path: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+
+    - name: Set GTK theme config (xsettings)
+      copy:
+        dest: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          <?xml version="1.0" encoding="UTF-8"?>
+          <channel name="xsettings" version="1.0">
+            <property name="Net" type="empty">
+              <property name="ThemeName" type="string" value="Materia-dark-compact"/>
+              <property name="IconThemeName" type="string" value="Papirus-Dark"/>
+            </property>
+            <property name="Gtk" type="empty">
+              <property name="CursorThemeName" type="string" value="Adwaita"/>
+              <property name="FontName" type="string" value="Noto Sans 10"/>
+              <property name="MonospaceFontName" type="string" value="Noto Sans Mono 10"/>
+            </property>
+          </channel>
+
+    - name: Set XFWM4 (window manager) theme config
+      copy:
+        dest: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          <?xml version="1.0" encoding="UTF-8"?>
+          <channel name="xfwm4" version="1.0">
+            <property name="general" type="empty">
+              <property name="theme" type="string" value="Materia-dark-compact"/>
+              <property name="title_font" type="string" value="Noto Sans Bold 10"/>
+              <property name="button_layout" type="string" value="O|HMC"/>
+              <property name="compositor_enabled" type="bool" value="false"/>
+            </property>
+          </channel>
+
+    - name: Set xfce4-desktop config
+      copy:
+        dest: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          <?xml version="1.0" encoding="UTF-8"?>
+          <channel name="xfce4-desktop" version="1.0">
+            <property name="desktop-icons" type="empty">
+              <property name="style" type="int" value="0"/>
+            </property>
+          </channel>
+
+    - name: Install XFCE startup wrapper script
+      copy:
+        dest: /opt/launcher/scripts/start-desktop.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # Export config home so XFCE uses /data for persistence
+          export XDG_CONFIG_HOME=/data/desktop/config
+
+          # Start window manager
+          xfwm4 --compositor=off &
+          WM_PID=$!
+
+          # Give WM a moment to initialize
+          sleep 1
+
+          # Start desktop and panel
+          xfdesktop &
+          xfce4-panel &
+
+          # Wait for WM to exit (closing the DE)
+          wait $WM_PID
+
+    - name: Register Desktop with launcher
+      copy:
+        dest: /opt/launcher/apps/desktop.json
+        content: |
+          {
+            "name": "Desktop",
+            "cmd": ["/opt/launcher/scripts/start-desktop.sh"],
+            "color": "#455A64",
+            "icon": "desktop",
+            "env": {
+              "XDG_CONFIG_HOME": "/data/desktop/config",
+              "DISPLAY": 1
+            }
+          }
+
+    - name: Create desktop data directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/desktop
+        - /data/desktop/config
+
+- name: Setup Desktop at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Ensure desktop data directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/desktop
+        - /data/desktop/config
+        - /data/desktop/config/xfce4
