@@ -50,24 +50,6 @@
               "XDG_CONFIG_HOME": "/data/chrome/config"
             }
           }
-    - name: Create Chrome directories
-      file:
-        path: "{{ item }}"
-        state: directory
-        owner: "{{ lookup('env', 'PUID') }}"
-        group: "{{ lookup('env', 'PGID') }}"
-        mode: '0755'
-      loop:
-        - /data/chrome
-        - /data/chrome/config
-- name: Setup Chrome at startup
-  hosts: localhost
-  connection: local
-  tags: startup
-  tasks:
-    - name: Welcome
-      shell: |
-        echo "Hello from Chrome"
     # - name: Create Chrome directories
     #   file:
     #     path: "{{ item }}"
@@ -78,3 +60,22 @@
     #   loop:
     #     - /data/chrome
     #     - /data/chrome/config
+- name: Setup Chrome at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from Chrome"
+        
+    - name: Create Chrome directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/chrome
+        - /data/chrome/config
