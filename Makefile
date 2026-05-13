@@ -3,6 +3,8 @@ PUID := 1000 #$(shell id -u)
 PGID := 1000 #$(shell id -g)
 SENTINEL := $(SCRIPT_DIR)/.last-build
 
+VERSION := $(shell git rev-parse --short HEAD)
+
 .PHONY: help run build generate check-rebuild
 
 help:
@@ -20,10 +22,10 @@ generate:
 
 build: generate
 	mkdir -p ./data
-	PUID=$(PUID) PGID=$(PGID) docker compose build
-	docker save researcher-deskless | gzip > $(SCRIPT_DIR)/researcher-deskless.tar.gz
+	PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) docker compose build
+	docker save researcher-deskless:$(VERSION) | gzip > $(SCRIPT_DIR)/researcher-deskless-$(VERSION).tar.gz
 	@grep -v '^\s*#' $(SCRIPT_DIR)/config.yaml | grep -v '^\s*$$' > $(SENTINEL)
-	@echo "==> Image saved to $(SCRIPT_DIR)/researcher-deskless.tar.gz"
+	@echo "==> Image saved to $(SCRIPT_DIR)/researcher-deskless-$(VERSION).tar.gz"
 
 check-rebuild:
 	@CURRENT=$$(grep -v '^\s*#' $(SCRIPT_DIR)/config.yaml | grep -v '^\s*$$'); \
@@ -36,16 +38,17 @@ check-rebuild:
 	fi
 
 run: check-rebuild
-	@if ! docker image inspect researcher-deskless:latest &>/dev/null; then \
-		if [ -f $(SCRIPT_DIR)/researcher-deskless.tar.gz ]; then \
+	mkdir -p data/
+	@if ! docker image inspect researcher-deskless:$(VERSION) &>/dev/null; then \
+		if [ -f $(SCRIPT_DIR)/researcher-deskless-$(VERSION).tar.gz ]; then \
 			echo "==> Loading image..."; \
-			docker load < $(SCRIPT_DIR)/researcher-deskless.tar.gz; \
+			docker load < $(SCRIPT_DIR)/researcher-deskless-$(VERSION).tar.gz; \
 		else \
-			echo "ERROR: image not loaded and researcher-deskless.tar.gz not found. Run 'make build' first."; \
+			echo "ERROR: image not loaded and researcher-deskless-$(VERSION).tar.gz not found. Run 'make build' first."; \
 			exit 1; \
 		fi \
 	fi
 	xhost +local:docker
-	PUID=$(PUID) PGID=$(PGID) docker compose up && PUID=$(PUID) PGID=$(PGID) docker compose down
+	PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) docker compose up && PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) docker compose down
 
 .DEFAULT_GOAL := help
