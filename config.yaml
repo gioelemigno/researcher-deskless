@@ -2,6 +2,7 @@
 # Comment out any app you don't want installed
 
 apps:
-  - zotero
-  - obsidian
+  # - zotero
+  # - obsidian
   - terminal
+  - chrome

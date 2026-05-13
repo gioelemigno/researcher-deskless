@@ -1,0 +1,80 @@
+---
+- name: Install Chrome
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Create Chrome data directory
+      file:
+        path: /data/chrome
+        state: directory
+        mode: '0755'
+
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - wget
+          - ca-certificates
+          - fonts-liberation
+          - libu2f-udev
+          - libvulkan1
+          - xdg-utils
+        state: present
+        update_cache: yes
+
+    - name: Download Chrome deb
+      get_url:
+        url: "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+        dest: /tmp/chrome.deb
+
+    - name: Install Chrome deb
+      apt:
+        deb: /tmp/chrome.deb
+        state: present
+
+    - name: Cleanup
+      file:
+        path: /tmp/chrome.deb
+        state: absent
+
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/chrome.json
+        content: |
+          {
+            "name": "Chrome",
+            "cmd": ["google-chrome", "--disable-gpu", "--disable-dev-shm-usage", "--enable-unsafe-swiftshader"],
+            "color": "#4285F4",
+            "env": {
+              "XDG_CONFIG_HOME": "/data/chrome/config"
+            }
+          }
+    - name: Create Chrome directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/chrome
+        - /data/chrome/config
+- name: Setup Chrome at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from Chrome"
+    # - name: Create Chrome directories
+    #   file:
+    #     path: "{{ item }}"
+    #     state: directory
+    #     owner: "{{ lookup('env', 'PUID') }}"
+    #     group: "{{ lookup('env', 'PGID') }}"
+    #     mode: '0755'
+    #   loop:
+    #     - /data/chrome
+    #     - /data/chrome/config
