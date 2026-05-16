@@ -1,37 +1,119 @@
 ---
+# =============================================================================
+# XFCE Desktop Environment Playbook
+# =============================================================================
+# This playbook installs and configures a full XFCE desktop environment that
+# runs inside a Xephyr window (a nested X server). This means the entire DE
+# appears as a normal app window on the host display, fully isolated from the
+# host's own window manager.
+#
+# Tags:
+#   build   — run once at image build time to install packages and write config
+#   startup — run every time the container starts (currently only ensures dirs)
+#
+# The Desktop app is launched on demand via the Python launcher (singleton).
+# When the user closes the Xephyr window, the DE and all its children exit.
+# =============================================================================
+
 - name: Install XFCE Desktop Environment
   hosts: localhost
   connection: local
   tags: build
   tasks:
+
+    # -------------------------------------------------------------------------
+    # PACKAGES
+    # -------------------------------------------------------------------------
+    # Install everything needed for XFCE, theming, and clipboard bridging.
+    # All packages come from apt so no external downloads are needed here.
+    # -------------------------------------------------------------------------
     - name: Install XFCE core components
       apt:
         name:
-          # Core WM and desktop
+          # xserver-xephyr: nested X server that renders as a window on the
+          # host display. This is what allows the DE to appear as a normal app
+          # window without conflicting with the host's own window manager.
+          - xserver-xephyr
+
+          # xfwm4: XFCE window manager — handles window decorations, focus,
+          # tiling hints and keyboard shortcuts inside the Xephyr display.
           - xfwm4
+
+          # xfce4-panel: the taskbar at the bottom/top of the DE, hosts
+          # the app menu, clock, system tray, and panel plugins.
           - xfce4-panel
+
+          # xfdesktop4: renders the desktop background and desktop icons
+          # inside the Xephyr window.
           - xfdesktop4
+
+          # xfce4-session: session manager, handles logout/restart actions
+          # from within the DE.
           - xfce4-session
-          # Settings and utilities
+
+          # xfce4-settings: provides the Settings Manager GUI and the
+          # xfsettingsd daemon that applies GTK/icon themes at runtime.
           - xfce4-settings
+
+          # xfconf: XFCE's configuration storage system. The xfconf-query
+          # CLI tool and the xfconfd daemon read/write XML channel files
+          # stored under XDG_CONFIG_HOME/xfce4/xfconf/xfce-perchannel-xml/.
           - xfconf
-          # File manager
+
+          # thunar: the XFCE file manager. Lightweight, supports plugins,
+          # and integrates well with xfdesktop for desktop file management.
           - thunar
-          # Terminal (useful inside the DE)
+
+          # xfce4-terminal: terminal emulator that integrates with the XFCE
+          # theme and respects XDG paths for config persistence.
           - xfce4-terminal
-          # Panel plugins
+
+          # xfce4-whiskermenu-plugin: modern app launcher menu for the panel,
+          # replaces the default XFCE menu with search and categories.
           - xfce4-whiskermenu-plugin
+
+          # xfce4-pulseaudio-plugin: volume control in the panel system tray.
           - xfce4-pulseaudio-plugin
+
+          # xfce4-clipman-plugin: clipboard manager plugin for the panel,
+          # keeps a history of copied items accessible from the tray.
           - xfce4-clipman-plugin
-          # Theme
+
+          # materia-gtk-theme: a Material Design inspired GTK theme.
+          # We use the "Materia-dark-compact" variant — dark background,
+          # reduced padding for a denser, modern look.
           - materia-gtk-theme
+
+          # papirus-icon-theme: a modern flat icon set with wide app coverage.
+          # We use the "Papirus-Dark" variant to match the dark theme.
           - papirus-icon-theme
-          # Fonts
+
+          # xclip: command-line tool to read and write X11 clipboard selections.
+          # Used by the clipboard bridge script to sync CLIPBOARD and PRIMARY
+          # selections between the host display and the Xephyr display.
+          - xclip
+
+          # fonts-noto / fonts-noto-color-emoji: Google's Noto font family
+          # provides consistent rendering across scripts and includes emoji.
+          # Set as the default UI and monospace font in xsettings.xml.
           - fonts-noto
           - fonts-noto-color-emoji
         state: present
         update_cache: yes
 
+    # -------------------------------------------------------------------------
+    # DIRECTORY STRUCTURE
+    # -------------------------------------------------------------------------
+    # All XFCE config and data is stored under /data/desktop so it persists
+    # across container restarts and travels with the USB drive.
+    #
+    # XDG_CONFIG_HOME=/data/desktop/config
+    #   └── xfce4/
+    #       └── xfconf/
+    #           └── xfce-perchannel-xml/   ← theme and settings XML files
+    #
+    # XDG_DATA_HOME=/data/desktop/local/share  ← for XFCE runtime data
+    # -------------------------------------------------------------------------
     - name: Create XFCE config directory
       file:
         path: /data/desktop/config/xfce4
@@ -40,7 +122,9 @@
         group: "{{ lookup('env', 'PGID') }}"
         mode: '0755'
 
-    - name: Create xfconf config directory
+    - name: Create xfconf channel directory
+      # xfconfd reads per-channel XML files from this exact path.
+      # Each file controls a different subsystem (theme, WM, desktop, etc).
       file:
         path: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml
         state: directory
@@ -48,7 +132,20 @@
         group: "{{ lookup('env', 'PGID') }}"
         mode: '0755'
 
-    - name: Set GTK theme config (xsettings)
+    # -------------------------------------------------------------------------
+    # XFCE CONFIGURATION FILES
+    # -------------------------------------------------------------------------
+    # These XML files are read by xfconfd on startup via XDG_CONFIG_HOME.
+    # They set the theme, icon set, fonts, WM decorations, and desktop style.
+    # Writing them here at build time means the DE always starts with the
+    # correct theme without any manual configuration by the user.
+    # -------------------------------------------------------------------------
+
+    - name: Write xsettings.xml — GTK theme, icons, fonts
+      # xsettings is the channel that controls GTK-wide settings:
+      # which theme to apply to all GTK apps, which icon set to use,
+      # cursor theme, and default fonts. xfsettingsd reads this on startup
+      # and broadcasts the settings to all running GTK applications.
       copy:
         dest: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
         owner: "{{ lookup('env', 'PUID') }}"
@@ -57,17 +154,27 @@
           <?xml version="1.0" encoding="UTF-8"?>
           <channel name="xsettings" version="1.0">
             <property name="Net" type="empty">
+              <!-- GTK widget theme: Materia-dark-compact for a modern dark UI -->
               <property name="ThemeName" type="string" value="Materia-dark-compact"/>
+              <!-- Icon theme: Papirus-Dark matches the dark theme palette -->
               <property name="IconThemeName" type="string" value="Papirus-Dark"/>
             </property>
             <property name="Gtk" type="empty">
+              <!-- Adwaita cursor is clean and available without extra packages -->
               <property name="CursorThemeName" type="string" value="Adwaita"/>
+              <!-- UI font: Noto Sans for consistent cross-script rendering -->
               <property name="FontName" type="string" value="Noto Sans 10"/>
+              <!-- Monospace font: used in terminals and code editors -->
               <property name="MonospaceFontName" type="string" value="Noto Sans Mono 10"/>
             </property>
           </channel>
 
-    - name: Set XFWM4 (window manager) theme config
+    - name: Write xfwm4.xml — window manager theme and behaviour
+      # xfwm4 is the XFCE window manager. This channel controls window
+      # decoration style (title bar, borders), fonts in title bars,
+      # button layout, and whether the compositor is enabled.
+      # Compositor is disabled because we are inside a Xephyr window —
+      # nested compositing causes tearing and blank windows over VNC/noVNC.
       copy:
         dest: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml
         owner: "{{ lookup('env', 'PUID') }}"
@@ -76,14 +183,21 @@
           <?xml version="1.0" encoding="UTF-8"?>
           <channel name="xfwm4" version="1.0">
             <property name="general" type="empty">
+              <!-- Window decoration theme — must match an installed xfwm4 theme -->
               <property name="theme" type="string" value="Materia-dark-compact"/>
+              <!-- Font used in window title bars -->
               <property name="title_font" type="string" value="Noto Sans Bold 10"/>
+              <!-- Button layout: O=menu | H=hide M=maximise C=close -->
               <property name="button_layout" type="string" value="O|HMC"/>
+              <!-- Disable compositor: avoids rendering issues inside Xephyr -->
               <property name="compositor_enabled" type="bool" value="false"/>
             </property>
           </channel>
 
-    - name: Set xfce4-desktop config
+    - name: Write xfce4-desktop.xml — desktop icon style
+      # Controls how xfdesktop renders the desktop background and icons.
+      # style=0 disables desktop icons entirely for a cleaner look —
+      # users interact with files via Thunar rather than desktop icons.
       copy:
         dest: /data/desktop/config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml
         owner: "{{ lookup('env', 'PUID') }}"
@@ -92,33 +206,231 @@
           <?xml version="1.0" encoding="UTF-8"?>
           <channel name="xfce4-desktop" version="1.0">
             <property name="desktop-icons" type="empty">
+              <!-- 0 = no desktop icons, 1 = file icons, 2 = minimised app icons -->
               <property name="style" type="int" value="0"/>
             </property>
           </channel>
 
+    # -------------------------------------------------------------------------
+    # CLIPBOARD BRIDGE SCRIPT
+    # -------------------------------------------------------------------------
+    # X11 has two independent clipboard mechanisms:
+    #   CLIPBOARD — explicit copy/paste (Ctrl+C / Ctrl+V)
+    #   PRIMARY   — implicit selection/paste (mouse select / middle-click)
+    #
+    # Xephyr runs a completely separate X server, so by default its clipboard
+    # is invisible to the host and vice versa. This script polls both displays
+    # every 500ms and syncs whichever selection changed last, in both directions.
+    #
+    # Four state variables track the last known value of each selection on each
+    # display, preventing infinite ping-pong where a sync triggers a re-sync.
+    # -------------------------------------------------------------------------
+    - name: Install clipboard bridge script
+      copy:
+        dest: /opt/launcher/scripts/clipboard-bridge.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # clipboard-bridge.sh — bidirectional clipboard sync between two X displays
+          #
+          # Arguments:
+          #   $1  HOST_DISPLAY    — the host X display (e.g. :0)
+          #   $2  XEPHYR_DISPLAY  — the Xephyr virtual display (e.g. :99)
+          #
+          # Syncs both CLIPBOARD (Ctrl+C/V) and PRIMARY (mouse select/middle-click).
+          # Runs as a background daemon and exits when killed by start-desktop.sh.
+
+          HOST_DISPLAY=$1
+          XEPHYR_DISPLAY=$2
+
+          # Last known values — used to detect changes and avoid ping-pong loops
+          LAST_HOST_CLIP=""
+          LAST_XEPHYR_CLIP=""
+          LAST_HOST_PRIMARY=""
+          LAST_XEPHYR_PRIMARY=""
+
+          while true; do
+
+            # -----------------------------------------------------------------
+            # CLIPBOARD selection (Ctrl+C / Ctrl+V)
+            # -----------------------------------------------------------------
+            # Read current CLIPBOARD value from both displays
+            HOST_CLIP=$(DISPLAY=${HOST_DISPLAY} xclip -o -selection clipboard 2>/dev/null)
+            XEPHYR_CLIP=$(DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection clipboard 2>/dev/null)
+
+            # Host -> Xephyr: sync if host clipboard changed since last poll
+            # and is different from what Xephyr already has (avoids re-sync)
+            if [ "${HOST_CLIP}" != "${LAST_HOST_CLIP}" ] && [ "${HOST_CLIP}" != "${XEPHYR_CLIP}" ]; then
+              echo -n "${HOST_CLIP}" | DISPLAY=${XEPHYR_DISPLAY} xclip -i -selection clipboard 2>/dev/null
+              LAST_HOST_CLIP="${HOST_CLIP}"
+              LAST_XEPHYR_CLIP="${HOST_CLIP}"
+            fi
+
+            # Xephyr -> Host: sync if Xephyr clipboard changed since last poll
+            # and is different from what the host already has
+            if [ "${XEPHYR_CLIP}" != "${LAST_XEPHYR_CLIP}" ] && [ "${XEPHYR_CLIP}" != "${HOST_CLIP}" ]; then
+              echo -n "${XEPHYR_CLIP}" | DISPLAY=${HOST_DISPLAY} xclip -i -selection clipboard 2>/dev/null
+              LAST_XEPHYR_CLIP="${XEPHYR_CLIP}"
+              LAST_HOST_CLIP="${XEPHYR_CLIP}"
+            fi
+
+            # -----------------------------------------------------------------
+            # PRIMARY selection (mouse highlight / middle-click paste)
+            # -----------------------------------------------------------------
+            # Tracked independently from CLIPBOARD — they are separate buffers
+            # in X11 and must not overwrite each other
+            HOST_PRIMARY=$(DISPLAY=${HOST_DISPLAY} xclip -o -selection primary 2>/dev/null)
+            XEPHYR_PRIMARY=$(DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection primary 2>/dev/null)
+
+            # Host -> Xephyr
+            if [ "${HOST_PRIMARY}" != "${LAST_HOST_PRIMARY}" ] && [ "${HOST_PRIMARY}" != "${XEPHYR_PRIMARY}" ]; then
+              echo -n "${HOST_PRIMARY}" | DISPLAY=${XEPHYR_DISPLAY} xclip -i -selection primary 2>/dev/null
+              LAST_HOST_PRIMARY="${HOST_PRIMARY}"
+              LAST_XEPHYR_PRIMARY="${HOST_PRIMARY}"
+            fi
+
+            # Xephyr -> Host
+            if [ "${XEPHYR_PRIMARY}" != "${LAST_XEPHYR_PRIMARY}" ] && [ "${XEPHYR_PRIMARY}" != "${HOST_PRIMARY}" ]; then
+              echo -n "${XEPHYR_PRIMARY}" | DISPLAY=${HOST_DISPLAY} xclip -i -selection primary 2>/dev/null
+              LAST_XEPHYR_PRIMARY="${XEPHYR_PRIMARY}"
+              LAST_HOST_PRIMARY="${XEPHYR_PRIMARY}"
+            fi
+
+            # Poll every 500ms — fast enough to feel instant, light on CPU
+            sleep 0.5
+          done
+
+    # -------------------------------------------------------------------------
+    # STARTUP WRAPPER SCRIPT
+    # -------------------------------------------------------------------------
+    # This script is the entry point called by the Python launcher when the
+    # user clicks "Desktop". It:
+    #   1. Finds a free X display number (starting from :99)
+    #   2. Starts Xephyr on that display as a resizable window on the host
+    #   3. Exports DISPLAY and XDG paths so all child processes use them
+    #   4. Starts XFCE components (WM, desktop, panel) inside Xephyr
+    #   5. Starts the clipboard bridge as a background daemon
+    #   6. Waits for Xephyr to close (user closes the window)
+    #   7. Cleans up all child processes on exit
+    #
+    # The launcher treats this script as a singleton — only one instance
+    # can run at a time. Closing the Xephyr window exits the script, which
+    # signals the launcher that the Desktop app has stopped.
+    # -------------------------------------------------------------------------
     - name: Install XFCE startup wrapper script
       copy:
         dest: /opt/launcher/scripts/start-desktop.sh
         mode: '0755'
         content: |
           #!/bin/bash
-          # Export config home so XFCE uses /data for persistence
+          # start-desktop.sh — launches XFCE inside a Xephyr window
+          # Called by the Python launcher as the Desktop app entry point.
+
+          # Tell XFCE where to store its config and data.
+          # Using /data ensures settings persist across restarts and on the USB.
           export XDG_CONFIG_HOME=/data/desktop/config
+          export XDG_DATA_HOME=/data/desktop/local/share
 
-          # Start window manager
-          xfwm4 --compositor=off &
-          WM_PID=$!
+          # -----------------------------------------------------------------
+          # Find a free display number for Xephyr
+          # -----------------------------------------------------------------
+          # Xephyr needs its own display number (e.g. :99). We check for the
+          # lock file that Xorg creates to detect whether a display is in use.
+          # This avoids conflicts if something else already claimed :99.
+          DISPLAY_NUM=99
+          while [ -f /tmp/.X${DISPLAY_NUM}-lock ]; do
+            DISPLAY_NUM=$((DISPLAY_NUM + 1))
+          done
+          XEPHYR_DISPLAY=":${DISPLAY_NUM}"
 
-          # Give WM a moment to initialize
+          # -----------------------------------------------------------------
+          # Start Xephyr
+          # -----------------------------------------------------------------
+          # Xephyr is a nested X server: it opens a window on the host display
+          # ($DISPLAY, set by the launcher) and inside that window runs a
+          # fully independent X server. All XFCE components and apps started
+          # with DISPLAY=${XEPHYR_DISPLAY} render inside this window.
+          #
+          # Flags:
+          #   -resizeable       allow the user to resize the Xephyr window
+          #   -no-host-grab     prevent Xephyr from capturing host shortcuts
+          #                     (e.g. Ctrl+Alt+F2 should still work on host)
+          #   -title "Desktop"  window title shown in the host taskbar
+          #   -screen 1280x800  initial resolution of the virtual display
+          Xephyr \
+            -resizeable \
+            -no-host-grab \
+            -title "Desktop" \
+            -screen 1280x800 \
+            ${XEPHYR_DISPLAY} &
+          XEPHYR_PID=$!
+
+          # Give Xephyr a moment to initialise before connecting clients
           sleep 1
 
-          # Start desktop and panel
+          # -----------------------------------------------------------------
+          # Point all child processes at the Xephyr display
+          # -----------------------------------------------------------------
+          # Exporting DISPLAY here means every process started after this
+          # line automatically connects to Xephyr, not the host display.
+          # This is what prevents XFCE from conflicting with the host WM.
+          export DISPLAY=${XEPHYR_DISPLAY}
+
+          # -----------------------------------------------------------------
+          # Start XFCE components
+          # -----------------------------------------------------------------
+          # xfwm4: window manager — must start first so it is ready to manage
+          # the windows opened by xfdesktop and xfce4-panel.
+          # --compositor=off avoids rendering artifacts inside Xephyr.
+          xfwm4 --compositor=off &
+
+          # Small delay to ensure xfwm4 has registered with the X server
+          sleep 1
+
+          # xfdesktop: renders the desktop wallpaper inside the Xephyr window
           xfdesktop &
+
+          # xfce4-panel: the taskbar — app menu, clock, system tray, plugins
           xfce4-panel &
 
-          # Wait for WM to exit (closing the DE)
-          wait $WM_PID
+          # -----------------------------------------------------------------
+          # Start clipboard bridge
+          # -----------------------------------------------------------------
+          # Runs clipboard-bridge.sh as a background daemon.
+          # Passes the host display (:0) and the Xephyr display so the script
+          # knows which two X servers to bridge.
+          # BRIDGE_PID is captured so we can kill it cleanly on exit.
+          /opt/launcher/scripts/clipboard-bridge.sh :0 ${XEPHYR_DISPLAY} &
+          BRIDGE_PID=$!
 
+          # -----------------------------------------------------------------
+          # Wait for the user to close the Xephyr window
+          # -----------------------------------------------------------------
+          # `wait` blocks until Xephyr exits. When the user closes the window,
+          # Xephyr terminates and this script continues to the cleanup section.
+          # The launcher detects the script exiting and resets the singleton.
+          wait $XEPHYR_PID
+
+          # -----------------------------------------------------------------
+          # Cleanup
+          # -----------------------------------------------------------------
+          # Kill the clipboard bridge daemon first
+          kill ${BRIDGE_PID} 2>/dev/null
+
+          # Ask xfce4-panel to quit gracefully
+          DISPLAY=${XEPHYR_DISPLAY} xfce4-panel --quit 2>/dev/null
+
+          # Force-kill any remaining processes still attached to the Xephyr display
+          kill $(pgrep -f "DISPLAY=${XEPHYR_DISPLAY}") 2>/dev/null
+
+    # -------------------------------------------------------------------------
+    # LAUNCHER REGISTRATION
+    # -------------------------------------------------------------------------
+    # Registers the Desktop app with the Python launcher by dropping a JSON
+    # descriptor into /opt/launcher/apps/. The launcher picks this up and
+    # shows a "Desktop" card in the UI. The singleton behaviour is enforced
+    # by the launcher — only one instance of start-desktop.sh can run at once.
+    # -------------------------------------------------------------------------
     - name: Register Desktop with launcher
       copy:
         dest: /opt/launcher/apps/desktop.json
@@ -129,11 +441,17 @@
             "color": "#455A64",
             "icon": "desktop",
             "env": {
-              "XDG_CONFIG_HOME": "/data/desktop/config",
-              "DISPLAY": 1
+              "XDG_CONFIG_HOME": "/data/desktop/config"
             }
           }
 
+    # -------------------------------------------------------------------------
+    # DATA DIRECTORIES
+    # -------------------------------------------------------------------------
+    # Create the top-level /data/desktop directories at build time.
+    # The startup tag also ensures these exist at runtime in case /data is
+    # a freshly mounted volume that was not present during the build.
+    # -------------------------------------------------------------------------
     - name: Create desktop data directories
       file:
         path: "{{ item }}"
@@ -145,12 +463,23 @@
         - /data/desktop
         - /data/desktop/config
 
+# =============================================================================
+# STARTUP PLAY
+# =============================================================================
+# Runs every time the container starts (not just at build time).
+# Currently just ensures the directory tree exists on the mounted /data volume,
+# which may be a fresh USB volume that was not present during the image build.
+# =============================================================================
 - name: Setup Desktop at startup
   hosts: localhost
   connection: local
   tags: startup
   tasks:
-    - name: Ensure desktop data directories exist
+
+    - name: Ensure desktop data directories exist on mounted volume
+      # /data is a volume mount that may not have existed at build time.
+      # Re-creating the directory tree here guarantees the DE can always
+      # write its config even on a freshly formatted USB drive.
       file:
         path: "{{ item }}"
         state: directory

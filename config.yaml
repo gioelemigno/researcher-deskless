@@ -4,6 +4,6 @@
 apps:
   # - zotero
   # - obsidian
-  # - terminal
+  - terminal
   # - chrome
   - desktop
