@@ -9,13 +9,15 @@ ENV PGID=${PGID}
 
 RUN apt-get update && apt-get install -y \
     gosu \
+    sudo \
     python3 \
     python3-tk \
     python3-yaml \
-    python3-apt \
     ansible \
     dbus-x11 \
     fonts-noto-color-emoji \
+    x11-xserver-utils \
+    pulseaudio-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY config.yaml /build/config.yaml

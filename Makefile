@@ -1,4 +1,8 @@
 SCRIPT_DIR := $(shell pwd)
+
+HOST_UID := $(shell id -u)
+HOST_GID := $(shell id -g)
+
 PUID := 1000 #$(shell id -u)
 PGID := 1000 #$(shell id -g)
 SENTINEL := $(SCRIPT_DIR)/.last-build
@@ -22,7 +26,7 @@ generate:
 
 build: generate
 	mkdir -p ./data
-	PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) docker compose build
+	PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) HOST_UID=$(HOST_UID) HOST_GID=$(HOST_GID) docker compose build
 	docker save researcher-deskless:$(VERSION) | gzip > $(SCRIPT_DIR)/researcher-deskless-$(VERSION).tar.gz
 	@grep -v '^\s*#' $(SCRIPT_DIR)/config.yaml | grep -v '^\s*$$' > $(SENTINEL)
 	@echo "==> Image saved to $(SCRIPT_DIR)/researcher-deskless-$(VERSION).tar.gz"
@@ -49,6 +53,6 @@ run: check-rebuild
 		fi \
 	fi
 	xhost +local:docker
-	PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) docker compose up && PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) docker compose down
+	PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) HOST_UID=$(HOST_UID) HOST_GID=$(HOST_GID) docker compose up && PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) HOST_UID=$(HOST_UID) HOST_GID=$(HOST_GID) docker compose down
 
 .DEFAULT_GOAL := help

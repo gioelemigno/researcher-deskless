@@ -11,9 +11,13 @@ services:
       - DISPLAY=${DISPLAY:?err}
       - PUID=${PUID:?err}
       - PGID=${PGID:?err}
+      - PULSE_SERVER=unix:/run/user/${PUID:?err}/pulse/native
+
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       # - ./data/home:/home/researcher
+      - /run/user/${HOST_UID:?err}/pulse:/run/user/${PUID:?err}/pulse
+
     network_mode: host
     security_opt:
       - seccomp:unconfined
