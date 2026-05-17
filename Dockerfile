@@ -25,7 +25,7 @@ COPY apps/ /apps/
 COPY utils/build.py /build/build.py
 COPY utils/startup.py /build/startup.py
 
-RUN mkdir -p /opt/launcher/apps
+RUN mkdir -p /opt/launcher/apps /opt/launcher/scripts
 COPY utils/launcher.py /opt/launcher/launcher.py
 
 RUN python3 /build/build.py
