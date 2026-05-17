@@ -12,6 +12,8 @@ services:
       - PUID=${PUID:?err}
       - PGID=${PGID:?err}
       - PULSE_SERVER=unix:/run/user/${PUID:?err}/pulse/native
+      - HOST_DISPLAY=${HOST_DISPLAY:?err}
+      - HOST_XAUTHORITY=${HOST_XAUTHORITY:?err}
 
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix

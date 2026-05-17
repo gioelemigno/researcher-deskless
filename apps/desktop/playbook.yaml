@@ -234,14 +234,17 @@
           # clipboard-bridge.sh — bidirectional clipboard sync between two X displays
           #
           # Arguments:
-          #   $1  HOST_DISPLAY    — the host X display (e.g. :0)
-          #   $2  XEPHYR_DISPLAY  — the Xephyr virtual display (e.g. :99)
+          #   $1  HOST_DISPLAY     — the host X display (e.g. :1)
+          #   $2  HOST_XAUTHORITY  — path to the host Xauthority file
+          #                          needed to authenticate with the host X server
+          #   $3  XEPHYR_DISPLAY   — the Xephyr virtual display (e.g. :99)
           #
           # Syncs both CLIPBOARD (Ctrl+C/V) and PRIMARY (mouse select/middle-click).
           # Runs as a background daemon and exits when killed by start-desktop.sh.
 
           HOST_DISPLAY=$1
-          XEPHYR_DISPLAY=$2
+          HOST_XAUTHORITY=$2
+          XEPHYR_DISPLAY=$3
 
           # Last known values — used to detect changes and avoid ping-pong loops
           LAST_HOST_CLIP=""
@@ -258,8 +261,8 @@
             # selection (which causes 'ERROR target STRING not available').
             # The '|| echo ""' ensures we always get an empty string on error
             # rather than an unset variable, which would break the comparisons.
-            HOST_CLIP=$(timeout 0.2 DISPLAY=${HOST_DISPLAY} xclip -o -selection clipboard 2>/dev/null || echo "")
-            XEPHYR_CLIP=$(timeout 0.2 DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection clipboard 2>/dev/null || echo "")
+            HOST_CLIP=$(timeout 0.2 env DISPLAY=${HOST_DISPLAY} XAUTHORITY=${HOST_XAUTHORITY} xclip -o -selection clipboard 2>/dev/null || echo "")
+            XEPHYR_CLIP=$(timeout 0.2 env DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection clipboard 2>/dev/null || echo "")
 
             # Host -> Xephyr: sync if host clipboard changed since last poll
             # and is different from what Xephyr already has (avoids re-sync)
@@ -272,7 +275,7 @@
             # Xephyr -> Host: sync if Xephyr clipboard changed since last poll
             # and is different from what the host already has
             if [ "${XEPHYR_CLIP}" != "${LAST_XEPHYR_CLIP}" ] && [ "${XEPHYR_CLIP}" != "${HOST_CLIP}" ]; then
-              echo -n "${XEPHYR_CLIP}" | DISPLAY=${HOST_DISPLAY} xclip -i -selection clipboard 2>/dev/null
+              echo -n "${XEPHYR_CLIP}" | env DISPLAY=${HOST_DISPLAY} XAUTHORITY=${HOST_XAUTHORITY} xclip -i -selection clipboard 2>/dev/null
               LAST_XEPHYR_CLIP="${XEPHYR_CLIP}"
               LAST_HOST_CLIP="${XEPHYR_CLIP}"
             fi
@@ -282,19 +285,19 @@
             # -----------------------------------------------------------------
             # Tracked independently from CLIPBOARD — they are separate buffers
             # in X11 and must not overwrite each other
-            HOST_PRIMARY=$(timeout 0.2 DISPLAY=${HOST_DISPLAY} xclip -o -selection primary 2>/dev/null || echo "")
-            XEPHYR_PRIMARY=$(timeout 0.2 DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection primary 2>/dev/null || echo "")
+            HOST_PRIMARY=$(timeout 0.2 env DISPLAY=${HOST_DISPLAY} XAUTHORITY=${HOST_XAUTHORITY} xclip -o -selection primary 2>/dev/null || echo "")
+            XEPHYR_PRIMARY=$(timeout 0.2 env DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection primary 2>/dev/null || echo "")
 
             # Host -> Xephyr
             if [ "${HOST_PRIMARY}" != "${LAST_HOST_PRIMARY}" ] && [ "${HOST_PRIMARY}" != "${XEPHYR_PRIMARY}" ]; then
-              echo -n "${HOST_PRIMARY}" | DISPLAY=${XEPHYR_DISPLAY} xclip -i -selection primary 2>/dev/null
+              echo -n "${HOST_PRIMARY}" | env DISPLAY=${XEPHYR_DISPLAY} xclip -i -selection primary 2>/dev/null
               LAST_HOST_PRIMARY="${HOST_PRIMARY}"
               LAST_XEPHYR_PRIMARY="${HOST_PRIMARY}"
             fi
 
             # Xephyr -> Host
             if [ "${XEPHYR_PRIMARY}" != "${LAST_XEPHYR_PRIMARY}" ] && [ "${XEPHYR_PRIMARY}" != "${HOST_PRIMARY}" ]; then
-              echo -n "${XEPHYR_PRIMARY}" | DISPLAY=${HOST_DISPLAY} xclip -i -selection primary 2>/dev/null
+              echo -n "${XEPHYR_PRIMARY}" | env DISPLAY=${HOST_DISPLAY} XAUTHORITY=${HOST_XAUTHORITY} xclip -i -selection primary 2>/dev/null
               LAST_XEPHYR_PRIMARY="${XEPHYR_PRIMARY}"
               LAST_HOST_PRIMARY="${XEPHYR_PRIMARY}"
             fi
@@ -328,6 +331,14 @@
           #!/bin/bash
           # start-desktop.sh — launches XFCE inside a Xephyr window
           # Called by the Python launcher as the Desktop app entry point.
+
+          # Capture host display info BEFORE overriding DISPLAY for Xephyr.
+          # HOST_DISPLAY and HOST_XAUTHORITY are inherited from the environment
+          # set by the Makefile (HOST_DISPLAY=$(DISPLAY) HOST_XAUTHORITY=$(XAUTHORITY)).
+          # We save them here so the clipboard bridge can authenticate with
+          # the host X server after DISPLAY has been repointed to Xephyr.
+          HOST_DISPLAY=${HOST_DISPLAY:-$DISPLAY}
+          HOST_XAUTHORITY=${HOST_XAUTHORITY:-$XAUTHORITY}
 
           # Tell XFCE where to store its config and data.
           # Using /data ensures settings persist across restarts and on the USB.
@@ -400,10 +411,10 @@
           # Start clipboard bridge
           # -----------------------------------------------------------------
           # Runs clipboard-bridge.sh as a background daemon.
-          # Passes the host display (:0) and the Xephyr display so the script
-          # knows which two X servers to bridge.
+          # Passes the host display, host Xauthority file, and Xephyr display
+          # so the bridge can authenticate with both X servers.
           # BRIDGE_PID is captured so we can kill it cleanly on exit.
-          /opt/launcher/scripts/clipboard-bridge.sh :0 ${XEPHYR_DISPLAY} &
+          /opt/launcher/scripts/clipboard-bridge.sh "${HOST_DISPLAY}" "${HOST_XAUTHORITY}" "${XEPHYR_DISPLAY}" &
           BRIDGE_PID=$!
 
           # -----------------------------------------------------------------
