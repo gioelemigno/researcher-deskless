@@ -57,13 +57,14 @@
         path: /tmp/obsidian.AppImage
         state: absent
 
+    # APPDIR="/opt/obsidian" XDG_CONFIG_HOME="/data/obsidian/config" /opt/obsidian/AppRun --no-sandbox --enable-unsafe-swiftshader
     - name: Register with launcher
       copy:
         dest: /opt/launcher/apps/obsidian.json
         content: |
           {
             "name": "Obsidian",
-            "cmd": ["/opt/obsidian/AppRun", "--no-sandbox", "--enable-unsafe-swiftshader"],
+            "cmd": ["/opt/obsidian/AppRun"],
             "color": "#7B68EE",
             "env": {
               "APPDIR": "/opt/obsidian",
