@@ -9,9 +9,12 @@
 #
 # Architecture:
 #   - Xephyr opens a resizable window on the host display
-#   - All XFCE components run inside that virtual display
+#   - xfce4-session starts inside Xephyr and manages the full XFCE session:
+#       xfwm4 (window manager) + xfdesktop + xfce4-panel + xfsettingsd
+#   - xfce4-session provides the SESSION_MANAGER environment variable that
+#     panel launchers and .desktop files need to open apps correctly
 #   - Apps launched from within the DE stay contained inside Xephyr
-#   - Closing the Xephyr window kills the DE and all its children
+#   - Closing the Xephyr window kills the session and all its children
 #   - A clipboard bridge syncs CLIPBOARD and PRIMARY between host and Xephyr
 #
 # Tags:
@@ -48,7 +51,17 @@
           # app window without conflicting with the host window manager.
           - xserver-xephyr
 
-          # --- XFCE core ---
+          # --- XFCE session manager ---
+          # xfce4-session is the entry point for the entire XFCE session.
+          # It starts xfwm4, xfdesktop, xfce4-panel and xfsettingsd in the
+          # correct order, and sets SESSION_MANAGER in the environment so
+          # panel launchers and .desktop files can open apps correctly.
+          - xfce4-session
+
+          # --- XFCE core components ---
+          # Started automatically by xfce4-session, listed here as explicit
+          # dependencies to ensure they are installed in the image.
+
           # xfwm4: window manager — handles window decorations, focus,
           # tiling and keyboard shortcuts inside the Xephyr display.
           - xfwm4
@@ -60,13 +73,9 @@
           # xfdesktop4: renders the desktop background inside Xephyr.
           - xfdesktop4
 
-          # xfce4-session: session manager, handles logout/restart from the DE.
-          - xfce4-session
-
           # xfce4-settings + xfsettingsd: settings manager GUI and the daemon
           # that reads xfconfd values and applies GTK theme, icons, and fonts
-          # to all running applications. Without xfsettingsd the theme config
-          # is stored but never applied to the UI.
+          # to all running applications. Started by xfce4-session automatically.
           - xfce4-settings
 
           # xfconf: XFCE configuration storage. xfconfd stores settings in
@@ -221,13 +230,17 @@
     #   1. Capture host display info before overriding DISPLAY for Xephyr
     #   2. Find a free X display number (starting from :99)
     #   3. Start Xephyr as a resizable window on the host display
-    #   4. Export DISPLAY to point all child processes at Xephyr
-    #   5. Start xfwm4 (window manager) first — must be ready before others
-    #   6. Start xfdesktop and xfce4-panel
-    #   7. Start xfsettingsd — applies GTK theme/icons from xfconfd to all apps
-    #   8. Start clipboard bridge as a background daemon
-    #   9. Wait for Xephyr window to close (user exits the DE)
-    #  10. Clean up all child processes
+    #   4. Export DISPLAY and XDG paths for all child processes
+    #   5. Start xfce4-session — it manages the full XFCE component lifecycle
+    #   6. Start clipboard bridge as a background daemon
+    #   7. Wait for Xephyr window to close (user exits the DE)
+    #   8. Clean up all child processes
+    #
+    # Why xfce4-session instead of starting components manually:
+    #   xfce4-session starts xfwm4, xfdesktop, xfce4-panel and xfsettingsd
+    #   in the correct order and sets SESSION_MANAGER in the environment.
+    #   Without SESSION_MANAGER, panel launchers and .desktop files cannot
+    #   open applications — they fail silently with no visible feedback.
     # -------------------------------------------------------------------------
     - name: Install XFCE startup wrapper script
       copy:
@@ -256,7 +269,8 @@
           # -----------------------------------------------------------------
           # Find a free display number for Xephyr.
           # Xorg creates a lock file at /tmp/.X<N>-lock for each active display.
-          # We start at :99 and increment until we find a free slot.
+          # We start at :99 and increment until we find a free slot, avoiding
+          # conflicts with any other display already running on the system.
           # -----------------------------------------------------------------
           DISPLAY_NUM=99
           while [ -f /tmp/.X${DISPLAY_NUM}-lock ]; do
@@ -287,40 +301,26 @@
 
           # -----------------------------------------------------------------
           # Point all subsequent child processes at the Xephyr display.
-          # Exporting DISPLAY here means xfwm4, xfdesktop, xfce4-panel and
-          # every app launched from within the DE all connect to Xephyr,
-          # never to the host display.
+          # Exporting DISPLAY means xfce4-session and every component and app
+          # it starts all connect to Xephyr, never to the host display.
           # -----------------------------------------------------------------
           export DISPLAY=${XEPHYR_DISPLAY}
 
           # -----------------------------------------------------------------
-          # Start XFCE components in the correct order.
-          # xfwm4 must be first — it must be ready to manage windows before
-          # xfdesktop and xfce4-panel try to create their own windows.
+          # Start the XFCE session manager.
+          # xfce4-session is responsible for starting and supervising all
+          # XFCE components: xfwm4, xfdesktop, xfce4-panel, xfsettingsd.
+          # It also sets SESSION_MANAGER in the environment, which is required
+          # for panel launchers and .desktop files to open applications.
           # -----------------------------------------------------------------
-
-          # Window manager — compositor off to avoid artifacts inside Xephyr
-          xfwm4 --compositor=off &
-
-          # Wait for xfwm4 to register with the X server before proceeding
-          sleep 1
-
-          # Desktop background renderer
-          xfdesktop &
-
-          # Taskbar with app menu, clock, system tray and plugins
-          xfce4-panel &
-
-          # Settings daemon — MUST be started after xfconfd has initialised.
-          # xfsettingsd reads the theme/icon/font values from xfconfd and
-          # applies them to all running GTK applications. Without it, xfconf
-          # stores the config but the UI never reflects the changes.
-          xfsettingsd &
+          xfce4-session &
+          SESSION_PID=$!
 
           # -----------------------------------------------------------------
           # Start clipboard bridge.
           # Passes host display, host Xauthority, and Xephyr display so the
           # bridge can authenticate with both X servers independently.
+          # BRIDGE_PID is captured so we can kill it cleanly on exit.
           # -----------------------------------------------------------------
           /opt/launcher/scripts/clipboard-bridge.sh "${HOST_DISPLAY}" "${HOST_XAUTHORITY}" "${XEPHYR_DISPLAY}" &
           BRIDGE_PID=$!
@@ -339,8 +339,8 @@
           # Stop the clipboard bridge daemon
           kill ${BRIDGE_PID} 2>/dev/null
 
-          # Ask xfce4-panel to quit gracefully before force-killing
-          env DISPLAY=${XEPHYR_DISPLAY} xfce4-panel --quit 2>/dev/null
+          # Ask xfce4-session to quit gracefully first
+          kill ${SESSION_PID} 2>/dev/null
 
           # Force-kill any remaining processes still attached to the Xephyr display
           kill $(pgrep -f "DISPLAY=${XEPHYR_DISPLAY}") 2>/dev/null
@@ -398,8 +398,11 @@
     # the correct theme is applied on every container start, regardless of
     # what XFCE may have written to the USB during a previous session.
     #
-    # xfconfd reads these files when it starts. xfsettingsd then picks up
-    # the values from xfconfd and applies them to all running GTK apps.
+    # How the theme pipeline works:
+    #   1. xfconfd starts and reads these XML files into memory
+    #   2. xfce4-session starts xfsettingsd
+    #   3. xfsettingsd reads values from xfconfd via D-Bus
+    #   4. xfsettingsd broadcasts the theme/icon/font settings to all GTK apps
     # -------------------------------------------------------------------------
 
     - name: Write xsettings.xml — GTK theme, icons, fonts
