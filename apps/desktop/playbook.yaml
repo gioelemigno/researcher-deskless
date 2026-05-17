@@ -254,9 +254,12 @@
             # -----------------------------------------------------------------
             # CLIPBOARD selection (Ctrl+C / Ctrl+V)
             # -----------------------------------------------------------------
-            # Read current CLIPBOARD value from both displays
-            HOST_CLIP=$(DISPLAY=${HOST_DISPLAY} xclip -o -selection clipboard 2>/dev/null)
-            XEPHYR_CLIP=$(DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection clipboard 2>/dev/null)
+            # timeout 0.2 prevents xclip from hanging when no app owns the
+            # selection (which causes 'ERROR target STRING not available').
+            # The '|| echo ""' ensures we always get an empty string on error
+            # rather than an unset variable, which would break the comparisons.
+            HOST_CLIP=$(timeout 0.2 DISPLAY=${HOST_DISPLAY} xclip -o -selection clipboard 2>/dev/null || echo "")
+            XEPHYR_CLIP=$(timeout 0.2 DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection clipboard 2>/dev/null || echo "")
 
             # Host -> Xephyr: sync if host clipboard changed since last poll
             # and is different from what Xephyr already has (avoids re-sync)
@@ -279,8 +282,8 @@
             # -----------------------------------------------------------------
             # Tracked independently from CLIPBOARD — they are separate buffers
             # in X11 and must not overwrite each other
-            HOST_PRIMARY=$(DISPLAY=${HOST_DISPLAY} xclip -o -selection primary 2>/dev/null)
-            XEPHYR_PRIMARY=$(DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection primary 2>/dev/null)
+            HOST_PRIMARY=$(timeout 0.2 DISPLAY=${HOST_DISPLAY} xclip -o -selection primary 2>/dev/null || echo "")
+            XEPHYR_PRIMARY=$(timeout 0.2 DISPLAY=${XEPHYR_DISPLAY} xclip -o -selection primary 2>/dev/null || echo "")
 
             # Host -> Xephyr
             if [ "${HOST_PRIMARY}" != "${LAST_HOST_PRIMARY}" ] && [ "${HOST_PRIMARY}" != "${XEPHYR_PRIMARY}" ]; then
