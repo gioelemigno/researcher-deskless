@@ -1,0 +1,95 @@
+---
+- name: Install VS Code
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Create VS Code data directory
+      file:
+        path: /data/vscode
+        state: directory
+        mode: '0755'
+
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - wget
+          - gpg
+          - libnspr4
+          - libnss3
+          - libatk1.0-0
+          - libatk-bridge2.0-0
+          - libcups2
+          - libdrm2
+          - libgtk-3-0
+          - libgbm1
+          - libasound2
+          - libxss1
+          - libxtst6
+          - xdg-utils
+        state: present
+        update_cache: yes
+
+    - name: Get latest VS Code version
+      shell: |
+        curl -sI https://github.com/microsoft/vscode/releases/latest \
+        | grep -i location \
+        | grep -oP '[0-9]+\.[0-9]+\.[0-9]+'
+      register: vscode_version
+
+    - name: Debug version
+      debug:
+        msg: "Latest VS Code version: {{ vscode_version.stdout }}"
+
+    - name: Download VS Code .deb
+      get_url:
+        url: "https://update.code.visualstudio.com/{{ vscode_version.stdout }}/linux-deb-x64/stable"
+        dest: /tmp/vscode.deb
+        mode: '0644'
+
+    - name: Install VS Code .deb
+      apt:
+        deb: /tmp/vscode.deb
+        state: present
+
+    - name: Cleanup .deb package
+      file:
+        path: /tmp/vscode.deb
+        state: absent
+
+    # code --no-sandbox --user-data-dir=/data/vscode/config
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/vscode.json
+        content: |
+          {
+            "name": "VS Code",
+            "cmd": ["/usr/bin/code"],
+            "color": "#007ACC",
+            "env": {
+              "XDG_CONFIG_HOME": "/data/vscode/config"
+            }
+          }
+
+- name: Setup VS Code at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from VS Code"
+
+    - name: Create VS Code directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/vscode
+        - /data/vscode/config
+        - /data/vscode/extensions
+        - /data/vscode/workspace
