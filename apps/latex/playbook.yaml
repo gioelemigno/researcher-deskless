@@ -1,0 +1,67 @@
+---
+- name: Install LaTeX
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Create LaTeX data directory
+      file:
+        path: /data/latex
+        state: directory
+        mode: '0755'
+
+    # - name: Install dependencies
+    #   apt:
+    #     name:
+    #       - texlive-full
+    #     state: present
+    #     update_cache: yes
+
+    - name: Install LaTeX Workshop extension
+      shell: |
+        code \
+          --user-data-dir /data/latex \
+          --extensions-dir /data/latex/extensions \
+          --install-extension james-yu.latex-workshop \
+          --no-sandbox \
+          --force
+      register: extension_install
+      
+    - name: Debug extension install
+      debug:
+        msg: "{{ extension_install.stdout }}"
+
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/latex.json
+        content: |
+          {
+            "name": "LaTeX",
+            "cmd": [
+              "code",
+              "--user-data-dir", "/data/latex",
+              "--extensions-dir", "/data/latex/extensions"
+            ],
+            "color": "#007ACC",
+            "env": {}
+          }
+
+- name: Setup LaTeX at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from LaTeX"
+
+    - name: Create LaTeX directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/latex
+        - /data/latex/extensions

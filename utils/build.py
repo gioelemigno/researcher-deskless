@@ -21,7 +21,8 @@ for app in apps:
     result = subprocess.run([
         "ansible-playbook", playbook,
         "-i", "localhost,",
-        "--tags", "build"
+        "--tags", "build",
+        "-v"
     ])
     if result.returncode != 0:
         print(f"ERROR: Playbook for '{app}' failed.")
