@@ -1,0 +1,105 @@
+---
+- name: Install Syncthing
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Create Syncthing data directory
+      file:
+        path: /data/syncthing
+        state: directory
+        mode: '0755'
+
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - wget
+          - ca-certificates
+          - apt-transport-https
+        state: present
+        update_cache: yes
+
+    - name: Get latest Syncthing version
+      shell: |
+        curl -sI https://github.com/syncthing/syncthing/releases/latest \
+        | grep -i location \
+        | grep -oP '[0-9]+\.[0-9]+\.[0-9]+'
+      register: syncthing_version
+
+    - name: Debug version
+      debug:
+        msg: "Latest Syncthing version: {{ syncthing_version.stdout }}"
+
+    - name: Download Syncthing archive
+      get_url:
+        url: "https://github.com/syncthing/syncthing/releases/download/v{{ syncthing_version.stdout }}/syncthing-linux-amd64-v{{ syncthing_version.stdout }}.tar.gz"
+        dest: /tmp/syncthing.tar.gz
+        mode: '0755'
+
+    - name: Extract Syncthing archive
+      unarchive:
+        src: /tmp/syncthing.tar.gz
+        dest: /tmp
+        remote_src: yes
+  
+    - name: Cleanup archive
+      file:
+        path: /tmp/syncthing.tar.gz
+        state: absent
+
+    - name: Find all contents inside unarchived folder
+      find:
+        paths: /tmp/syncthing-linux-amd64-v{{ syncthing_version.stdout }}
+        recurse: no
+        hidden: yes
+      register: folder_contents
+
+    - name: Ensure destination directory exists
+      file:
+        path: /opt/syncthing
+        state: directory
+        mode: '0755'
+
+    - name: Move contents 
+      command: "mv {{ item.path }} /opt/syncthing/"
+      loop: "{{ folder_contents.files }}"
+      when: folder_contents.matched > 0
+
+    - name: Cleanup unarchived folder
+      file:
+        path: /tmp/syncthing-linux-amd64-v{{ syncthing_version.stdout }}
+        state: absent
+
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/syncthing.json
+        content: |
+          {
+            "name": "Syncthing",
+            "cmd": ["/opt/syncthing/syncthing", "--no-browser", "--home=/data/syncthing/config"],
+            "color": "#0087B4",
+            "env": {
+              "STNODEFAULTFOLDER": "1"
+            }
+          }
+
+- name: Setup Syncthing at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from Syncthing"
+        
+    - name: Create Syncthing directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/syncthing
+        - /data/syncthing/config
