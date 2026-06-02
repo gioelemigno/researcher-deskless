@@ -112,6 +112,7 @@ class Launcher(tk.Tk):
         self.processes   = {}   # name -> Popen
         self.log_buffers = {}   # name -> list[(line, stream)]  ← source of truth
         self.log_windows = {}   # name -> LogWindow | None (display only)
+        self.app_menus   = {}   # name -> tk.Menu (popup attached to ≡ button)
         self.apps = load_apps()
         self._build_ui()
 
@@ -136,7 +137,7 @@ class Launcher(tk.Tk):
         btn_frame = tk.Frame(self, bg="#1e1e2e", pady=20, padx=30)
         btn_frame.pack()
 
-        self.buttons      = {}
+        self.buttons       = {}
         self.status_labels = {}
 
         for app in self.apps:
@@ -166,7 +167,7 @@ class Launcher(tk.Tk):
             status.pack(pady=(4, 8))
             self.status_labels[name] = status
 
-            tk.Button(
+            launch_btn = tk.Button(
                 frame,
                 text="Launch",
                 bg=app["color"],
@@ -177,21 +178,57 @@ class Launcher(tk.Tk):
                 pady=6,
                 cursor="hand2",
                 command=lambda a=app: self._launch(a),
-            ).pack()
-            self.buttons[name] = frame.winfo_children()[-1]
+            )
+            launch_btn.pack()
+            self.buttons[name] = launch_btn
 
-            tk.Button(
+            # ≡ menu button — opens a popup with Logs / Stop / Kill.
+            # Using tk.Menu + post() gives a native dropdown that auto-dismisses.
+            menu = tk.Menu(
+                self,
+                tearoff=0,
+                bg="#313244",
+                fg="#cdd6f4",
+                activebackground="#45475a",
+                activeforeground="#cdd6f4",
+                relief=tk.FLAT,
+                bd=0,
+            )
+            menu.add_command(
+                label="  Logs",
+                command=lambda a=app: self._open_logs(a),
+            )
+            menu.add_separator()
+            menu.add_command(
+                label="  Stop",
+                foreground="#f9e2af",
+                activeforeground="#f9e2af",
+                command=lambda a=app: self._stop(a),
+            )
+            menu.add_command(
+                label="  Kill",
+                foreground="#f38ba8",
+                activeforeground="#f38ba8",
+                command=lambda a=app: self._kill(a),
+            )
+            # Refresh the enabled/disabled state of Stop and Kill just before
+            # the menu becomes visible, so they always reflect the live state.
+            menu.config(postcommand=lambda n=name: self._update_menu(n))
+            self.app_menus[name] = menu
+
+            menu_btn = tk.Button(
                 frame,
-                text="Logs",
+                text="≡",
                 bg="#45475a",
                 fg="#cdd6f4",
-                font=("sans-serif", 8),
+                font=("sans-serif", 11),
                 relief=tk.FLAT,
                 padx=8,
-                pady=3,
+                pady=2,
                 cursor="hand2",
-                command=lambda a=app: self._open_logs(a),
-            ).pack(pady=(6, 0))
+            )
+            menu_btn.pack(pady=(6, 0))
+            menu_btn.bind("<Button-1>", lambda e, m=menu: self._popup_menu_event(m, e))
 
         tk.Label(
             self,
@@ -257,7 +294,7 @@ class Launcher(tk.Tk):
             return
 
         self._set_status(name, "starting...", "#89b4fa")
-        self.buttons[name].config(state=tk.DISABLED)
+        self._set_controls(name, running=True)
 
         # Note: we deliberately do NOT open the log window here.
         # Output is collected silently in the buffer; the user can
@@ -278,6 +315,7 @@ class Launcher(tk.Tk):
                 )
                 self.processes[name] = proc
                 self.after(0, lambda: self._set_status(name, "running", "#a6e3a1"))
+                self.after(0, lambda: self._set_controls(name, running=True))
 
                 # Two threads drain stdout and stderr concurrently so
                 # neither pipe blocks the other
@@ -302,7 +340,7 @@ class Launcher(tk.Tk):
 
             except FileNotFoundError:
                 self.after(0, lambda: self._set_status(name, "not installed", "#f38ba8"))
-                self.after(0, lambda: self.buttons[name].config(state=tk.NORMAL))
+                self.after(0, lambda: self._set_controls(name, running=False))
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -318,10 +356,49 @@ class Launcher(tk.Tk):
     def _on_exit(self, app):
         name = app["name"]
         self._set_status(name, "not running", "#6c7086")
-        self.buttons[name].config(state=tk.NORMAL)
+        self._set_controls(name, running=False)
         # Record the exit marker in the buffer so it shows up whenever
         # the user opens the log window, even after the process is gone
         self._live_append(app, "\n[process exited]\n", "meta")
+
+    def _update_menu(self, name):
+        """Called by postcommand just before the menu appears.
+
+        Enables Stop/Kill only when a process is alive; Logs is always available.
+        Menu entries are at indices: 0=Logs, 1=separator, 2=Stop, 3=Kill.
+        """
+        running = name in self.processes and self.processes[name].poll() is None
+        state = tk.NORMAL if running else tk.DISABLED
+        self.app_menus[name].entryconfig(2, state=state)  # Stop
+        self.app_menus[name].entryconfig(3, state=state)  # Kill
+
+    def _popup_menu_event(self, menu, event):
+        """Post the menu directly below the button that was clicked."""
+        # Cancel the normal command binding so the button's own command
+        # (set to a no-op lambda) doesn't fire alongside this handler.
+        try:
+            menu.tk_popup(event.widget.winfo_rootx(),
+                          event.widget.winfo_rooty() + event.widget.winfo_height())
+        finally:
+            menu.grab_release()
+
+    def _set_controls(self, name, running: bool):
+        """Enable/disable the Launch button; Stop/Kill are handled by _update_menu."""
+        self.buttons[name].config(state=tk.DISABLED if running else tk.NORMAL)
+
+    def _stop(self, app):
+        """Send SIGTERM — asks the process to shut down gracefully."""
+        proc = self.processes.get(app["name"])
+        if proc and proc.poll() is None:
+            self._set_status(app["name"], "stopping...", "#f9e2af")
+            proc.terminate()
+
+    def _kill(self, app):
+        """Send SIGKILL — immediately destroys the process, no cleanup."""
+        proc = self.processes.get(app["name"])
+        if proc and proc.poll() is None:
+            self._set_status(app["name"], "killing...", "#f38ba8")
+            proc.kill()
 
     def _set_status(self, name, text, color):
         self.status_labels[name].config(text=text, fg=color)
