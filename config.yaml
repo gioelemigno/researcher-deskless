@@ -8,3 +8,4 @@ apps:
   - chrome
   - desktop
   - vscode
+  - syncthing

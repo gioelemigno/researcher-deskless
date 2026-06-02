@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     gosu \
     sudo \
     python3 \
+    python3-apt \
     python3-tk \
     python3-yaml \
     ansible \
