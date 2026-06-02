@@ -6,11 +6,16 @@ HOST_GID := $(shell id -g)
 HOST_DISPLAY := $(DISPLAY)
 HOST_XAUTHORITY := $(XAUTHORITY)
 
-PUID := 1000 #$(shell id -u)
-PGID := 1000 #$(shell id -g)
+PUID := 1000 
+#$(shell id -u)
+
+PGID := 1000 
+#$(shell id -g)
+
 SENTINEL := $(SCRIPT_DIR)/.last-build
 
-VERSION := $(shell git rev-parse --short HEAD)
+VERSION := v0.1.0
+#$(shell git rev-parse --short HEAD)
 
 SHELL_PREFIX := PUID=$(PUID) PGID=$(PGID) VERSION=$(VERSION) HOST_UID=$(HOST_UID) HOST_GID=$(HOST_GID) HOST_DISPLAY=$(HOST_DISPLAY) HOST_XAUTHORITY=$(HOST_XAUTHORITY)
 
