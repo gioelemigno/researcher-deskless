@@ -2,9 +2,9 @@
 # Comment out any app you don't want installed
 
 apps:
-  - zotero
+  # - zotero
   - obsidian
   - terminal
   - chrome
-  - desktop
-  - vscode
+  # - desktop
+  # - vscode
