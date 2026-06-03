@@ -59,7 +59,7 @@
           # --- Yaru theme (Ubuntu default look) ---
           - yaru-theme-icon         # Yaru icon set
           - yaru-theme-gtk          # Yaru GTK theme (provides Yaru-dark variant)
-          
+
         state: present
         update_cache: yes
 
@@ -78,7 +78,7 @@
         content: |
           {
             "name": "Files",
-            "cmd": ["/usr/bin/nautilus"],
+            "cmd": ["/bin/bash", "-c", "/usr/libexec/gvfsd & /usr/libexec/gvfsd-trash & sleep 1 && /usr/bin/nautilus; pkill -f gvfsd"],
             "color": "#4A90D9",
             "env": {
               "XDG_DATA_HOME": "/data/nautilus/data",
@@ -86,10 +86,10 @@
               "LANG": "en_US.UTF-8",
               "GTK_THEME": "Yaru-dark",
               "ICON_THEME": "Yaru",
-              "HOME": "/data/nautilus"
+              "HOME": "/data/nautilus",
+              "DBUS_SESSION_BUS_ADDRESS": "autolaunch:"
             }
           }
-
 - name: Setup Nautilus at startup
   hosts: localhost
   connection: local
@@ -109,13 +109,16 @@
       loop:
         - /data/nautilus
         - /data/nautilus/config
-        - /data/nautilus/data          # nautilus internal app data (cache, recent files db)
-        - /data/nautilus/files         # user-facing XDG dirs
+        - /data/nautilus/data
+        - /data/nautilus/files
         - /data/nautilus/files/Documents
         - /data/nautilus/files/Downloads
         - /data/nautilus/files/Pictures
         - /data/nautilus/files/Videos
         - /data/nautilus/files/Music
+        - /data/nautilus/.local/share/Trash        # gvfs looks for trash here
+        - /data/nautilus/.local/share/Trash/files
+        - /data/nautilus/.local/share/Trash/info
 
     - name: Write xdg-user-dirs config
       # Redirects the standard XDG folders into /data so they persist across
