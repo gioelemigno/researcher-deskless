@@ -31,20 +31,12 @@
         state: present
         update_cache: yes
 
-    - name: Get latest VS Code version
-      shell: |
-        curl -sI https://github.com/microsoft/vscode/releases/latest \
-        | grep -i location \
-        | grep -oP '[0-9]+\.[0-9]+\.[0-9]+'
-      register: vscode_version
-
-    - name: Debug version
-      debug:
-        msg: "Latest VS Code version: {{ vscode_version.stdout }}"
-
     - name: Download VS Code .deb
+      # Use the update server directly — it always redirects to the latest stable
+      # .deb regardless of how the GitHub release tag is named, so we skip version
+      # detection entirely and avoid breakage when MS uses non-semver tags (e.g. 1.123)
       get_url:
-        url: "https://update.code.visualstudio.com/{{ vscode_version.stdout }}/linux-deb-x64/stable"
+        url: "https://update.code.visualstudio.com/latest/linux-deb-x64/stable"
         dest: /tmp/vscode.deb
         mode: '0644'
 
