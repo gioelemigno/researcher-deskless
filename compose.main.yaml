@@ -20,6 +20,7 @@ services:
       # - ./data/home:/home/researcher
       - /run/user/${HOST_UID:?err}/pulse:/run/user/${PUID:?err}/pulse
 
+    ipc: host
     network_mode: host
     security_opt:
       - seccomp:unconfined

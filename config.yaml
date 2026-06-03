@@ -2,10 +2,11 @@
 # Comment out any app you don't want installed
 
 apps:
-  - zotero
-  - obsidian
-  - terminal
-  - chrome
-  - desktop
-  - vscode
-  - syncthing
+  # - zotero
+  # - obsidian
+  # - terminal
+  # - chrome
+  # - desktop
+  # - vscode
+  # - syncthing
+  - nautilus
