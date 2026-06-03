@@ -82,7 +82,7 @@
     #   loop:
     #     - /data/obsidian
     #     - /data/obsidian/config
-    #     - /data/obsidian/vault
+    #     - /data/obsidian/vaults
 
 - name: Setup Obsidian at startup
   hosts: localhost
@@ -103,4 +103,4 @@
       loop:
         - /data/obsidian
         - /data/obsidian/config
-        - /data/obsidian/vault
+        - /data/obsidian/vaults

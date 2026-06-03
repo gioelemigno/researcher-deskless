@@ -9,3 +9,4 @@ apps:
   - desktop
   - vscode
   - syncthing
+  - nautilus

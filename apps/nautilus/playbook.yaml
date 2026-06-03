@@ -1,0 +1,135 @@
+---
+- name: Install Nautilus and file-opening utilities
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Create Nautilus data directory
+      file:
+        path: /data/nautilus
+        state: directory
+        mode: '0755'
+
+    - name: Install Nautilus and file manager dependencies
+      apt:
+        name:
+          # --- Nautilus and its core GTK/GLib stack ---
+          - nautilus
+          - gvfs                    # virtual filesystem backend (trash, mtp, sftp...)
+          - gvfs-backends           # extra backends: ftp, smb, google drive, etc.
+          - gvfs-fuse               # exposes gvfs mounts under ~/.gvfs for non-GTK apps
+          - dbus-x11                # required for gvfs/nautilus IPC inside containers
+
+          # --- Thumbnail support (so Nautilus shows previews) ---
+          - tumbler                 # thumbnail generator daemon
+          - ffmpegthumbnailer       # video thumbnails
+
+          # --- PDF viewer ---
+          - evince                  # the standard GNOME PDF/document viewer
+
+          # --- Image viewer ---
+          - eog                     # Eye of GNOME, the standard GNOME image viewer
+          - libgdk-pixbuf2.0-0      # image decoding library used by eog and GTK
+
+          # --- Video/audio player ---
+          - totem                   # GNOME Videos, the standard media player
+          - totem-plugins           # extra codec/feature plugins for totem
+          - gstreamer1.0-plugins-base
+          - gstreamer1.0-plugins-good   # common codecs: mp4, mkv, webm, ogg, flac...
+          - gstreamer1.0-plugins-bad    # less-common codecs: aac, h265...
+          - gstreamer1.0-libav          # ffmpeg-backed codec support (broadest coverage)
+          - gstreamer1.0-gtk3           # GTK sink needed by totem
+
+          # --- MIME type / xdg-open plumbing ---
+          - shared-mime-info        # the MIME database (what filetype is this?)
+          - xdg-utils               # xdg-open dispatches files to the right app
+          - desktop-file-utils      # update-desktop-database, needed after installs
+
+          # --- Common runtime libs ---
+          - libnspr4
+          - libnss3
+          - libatk1.0-0
+          - libatk-bridge2.0-0
+          - libcups2
+          - libdrm2
+          - libgtk-3-0
+          - libgbm1
+          - libasound2
+
+          # --- Yaru theme (Ubuntu default look) ---
+          - yaru-theme-icon         # Yaru icon set
+          - yaru-theme-gtk          # Yaru GTK theme (provides Yaru-dark variant)
+
+        state: present
+        update_cache: yes
+
+    - name: Update MIME database
+      # Ensures xdg-open correctly maps file types to the apps we just installed
+      shell: update-mime-database /usr/share/mime
+
+    - name: Update desktop file database
+      # Lets GTK/xdg-open discover the .desktop files for evince, eog, totem
+      shell: update-desktop-database /usr/share/applications
+
+    # nautilus --no-startup-id
+    - name: Register Nautilus with launcher
+      copy:
+        dest: /opt/launcher/apps/nautilus.json
+        content: |
+          {
+            "name": "Files",
+            "cmd": ["/bin/bash", "-c", "/usr/libexec/gvfsd & /usr/libexec/gvfsd-trash & sleep 1 && /usr/bin/nautilus; pkill -f gvfsd"],
+            "color": "#4A90D9",
+            "env": {
+              "XDG_DATA_HOME": "/data/nautilus/data",
+              "XDG_CONFIG_HOME": "/data/nautilus/config",
+              "LANG": "en_US.UTF-8",
+              "GTK_THEME": "Yaru-dark",
+              "ICON_THEME": "Yaru",
+              "HOME": "/data/nautilus",
+              "DBUS_SESSION_BUS_ADDRESS": "autolaunch:"
+            }
+          }
+- name: Setup Nautilus at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from Nautilus"
+
+    - name: Create Nautilus directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/nautilus
+        - /data/nautilus/config
+        - /data/nautilus/data
+        - /data/nautilus/files
+        - /data/nautilus/files/Documents
+        - /data/nautilus/files/Downloads
+        - /data/nautilus/files/Pictures
+        - /data/nautilus/files/Videos
+        - /data/nautilus/files/Music
+        - /data/nautilus/.local/share/Trash        # gvfs looks for trash here
+        - /data/nautilus/.local/share/Trash/files
+        - /data/nautilus/.local/share/Trash/info
+
+    - name: Write xdg-user-dirs config
+      # Redirects the standard XDG folders into /data so they persist across
+      # container restarts and stay under the user-owned data volume
+      copy:
+        dest: /data/nautilus/config/user-dirs.dirs
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          XDG_DOCUMENTS_DIR="/data/nautilus/files/Documents"
+          XDG_DOWNLOAD_DIR="/data/nautilus/files/Downloads"
+          XDG_PICTURES_DIR="/data/nautilus/files/Pictures"
+          XDG_VIDEOS_DIR="/data/nautilus/files/Videos"
+          XDG_MUSIC_DIR="/data/nautilus/files/Music"
