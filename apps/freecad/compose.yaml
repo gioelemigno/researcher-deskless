@@ -1,0 +1,4 @@
+services:
+  main:
+    volumes:
+      - ../../data/freecad:/data/freecad

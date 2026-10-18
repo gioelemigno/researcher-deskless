@@ -2,9 +2,10 @@
 # Comment out any app you don't want installed
 
 apps:
+  - freecad
+  - terminal
   - zotero
   - obsidian
-  - terminal
   - chrome
   - desktop
   - vscode

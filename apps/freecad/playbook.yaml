@@ -1,0 +1,134 @@
+---
+- name: Install FreeCAD
+  hosts: localhost
+  connection: local
+  tags: build
+  vars:
+    freecad_repo: FreeCAD/FreeCAD
+    freecad_asset_regex: 'FreeCAD[^"/]*Linux-x86_64[^"/]*\.AppImage'
+    freecad_install_dir: /opt/freecad
+  tasks:
+    - name: Create FreeCAD data directory
+      file:
+        path: /data/freecad
+        state: directory
+        mode: '0755'
+
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - wget
+          - ca-certificates
+          - xdg-utils
+          - libgl1
+          - libglu1-mesa
+          - libxkbcommon-x11-0
+          - libxcb-xinerama0
+          - libxcb-cursor0
+        state: present
+        update_cache: yes
+
+    # /releases/latest answers with a redirect to /releases/tag/<tag>; read it without following
+    - name: Resolve latest release tag
+      uri:
+        url: "https://github.com/{{ freecad_repo }}/releases/latest"
+        method: HEAD
+        follow_redirects: none
+        status_code: [301, 302]
+      register: freecad_latest
+
+    - name: Set release tag
+      set_fact:
+        freecad_tag: "{{ freecad_latest.location | regex_replace('^.*/tag/', '') }}"
+
+    # Plain HTML list of the release assets (no API involved)
+    - name: Fetch release assets page
+      uri:
+        url: "https://github.com/{{ freecad_repo }}/releases/expanded_assets/{{ freecad_tag }}"
+        return_content: yes
+      register: freecad_assets
+
+    - name: Pick the x86_64 AppImage asset
+      set_fact:
+        freecad_url: >-
+          https://github.com{{ freecad_assets.content
+            | regex_findall('href="(/' ~ freecad_repo ~ '/releases/download/[^"/]+/' ~ freecad_asset_regex ~ ')"')
+            | first }}
+
+    - name: Show selected release
+      debug:
+        msg: "FreeCAD {{ freecad_tag }} -> {{ freecad_url }}"
+
+    - name: Download FreeCAD AppImage
+      get_url:
+        url: "{{ freecad_url }}"
+        dest: /tmp/freecad.AppImage
+        mode: '0755'
+
+    # Extract instead of running the AppImage directly: no FUSE needed in containers
+    - name: Remove previous extraction
+      file:
+        path: "{{ freecad_install_dir }}"
+        state: absent
+
+    - name: Create install directory
+      file:
+        path: "{{ freecad_install_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Extract AppImage
+      command: /tmp/freecad.AppImage --appimage-extract
+      args:
+        chdir: "{{ freecad_install_dir }}"
+        creates: "{{ freecad_install_dir }}/squashfs-root/AppRun"
+
+    - name: Make extracted files readable by all users
+      file:
+        path: "{{ freecad_install_dir }}/squashfs-root"
+        mode: 'a+rX'
+        recurse: yes
+
+    - name: Cleanup
+      file:
+        path: /tmp/freecad.AppImage
+        state: absent
+
+    - name: Register with launcher
+      copy:
+        dest: /opt/launcher/apps/freecad.json
+        content: |
+          {
+            "name": "FreeCAD",
+            "cmd": ["{{ freecad_install_dir }}/squashfs-root/AppRun"],
+            "color": "#CC0000",
+            "env": {
+              "HOME": "/data/freecad",
+              "XDG_CONFIG_HOME": "/data/freecad/config",
+              "XDG_DATA_HOME": "/data/freecad/share",
+              "LIBGL_ALWAYS_SOFTWARE": "1",
+              "QT_X11_NO_MITSHM": "1"
+            }
+          }
+
+- name: Setup FreeCAD at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Welcome
+      shell: |
+        echo "Hello from FreeCAD"
+
+    - name: Create FreeCAD directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/freecad
+        - /data/freecad/config
+        - /data/freecad/share
