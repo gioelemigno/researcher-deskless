@@ -1,4 +1,6 @@
 services:
   main:
+    devices:
+      - /dev/dri:/dev/dri
     volumes:
       - ../../data/obsidian:/data/obsidian
