@@ -50,6 +50,15 @@
         path: /tmp/vscode.deb
         state: absent
 
+    - name: Create baked-in extensions directory
+      # Extensions are installed here at build time (by this or other apps'
+      # playbooks) so they live in the image and work offline. Open to all
+      # users because the container user's UID is only known at runtime.
+      file:
+        path: /opt/vscode-extensions
+        state: directory
+        mode: '0777'
+
     # code --no-sandbox --user-data-dir=/data/vscode/config
     - name: Register with launcher
       copy:
@@ -57,10 +66,11 @@
         content: |
           {
             "name": "VS Code",
-            "cmd": ["/usr/bin/code"],
+            "cmd": ["/usr/bin/code", "--disable-gpu"],
             "color": "#007ACC",
             "env": {
-              "XDG_CONFIG_HOME": "/data/vscode/config"
+              "XDG_CONFIG_HOME": "/data/vscode/config",
+              "VSCODE_EXTENSIONS": "/opt/vscode-extensions"
             }
           }
 

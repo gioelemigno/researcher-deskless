@@ -12,6 +12,7 @@ A minimal GUI launcher lets you start any tool independently. The launcher stays
 |------|---------|--------|
 | [Zotero](https://www.zotero.org/) | Reference manager — collect, organize, cite | ✅ Available |
 | [Obsidian](https://obsidian.md/) | Knowledge base — notes, links, ideas | *Coming soon*|
+| [VS Code + LaTeX](https://github.com/James-Yu/LaTeX-Workshop) | LaTeX writing: TeX Live (full), LaTeX Workshop, LTeX+ grammar check (US English) | ✅ Available (`latex` app, needs `vscode`) |
 
 All data lives on the drive. All tools run in Docker. No installation required on the host beyond Docker itself.
 
