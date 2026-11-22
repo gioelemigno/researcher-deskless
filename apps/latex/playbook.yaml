@@ -1,0 +1,97 @@
+---
+# Requires the `vscode` app to be listed BEFORE `latex` in config.yaml:
+# this playbook uses the `code` CLI and the /opt/vscode-extensions directory
+# created by apps/vscode/playbook.yaml (exposed to VS Code via VSCODE_EXTENSIONS).
+- name: Install LaTeX environment
+  hosts: localhost
+  connection: local
+  tags: build
+  tasks:
+    - name: Check that VS Code is installed
+      stat:
+        path: /usr/bin/code
+      register: vscode_bin
+
+    - name: Fail if VS Code is missing
+      fail:
+        msg: "The 'latex' app needs the 'vscode' app. Put 'vscode' before 'latex' in config.yaml."
+      when: not vscode_bin.stat.exists
+
+    - name: Install TeX Live and tooling
+      apt:
+        name:
+          - texlive-full
+          - latexmk
+          - biber
+          - chktex
+          - latexdiff
+          - ghostscript
+          - make
+        state: present
+        update_cache: yes
+
+    - name: Install VS Code extensions (LaTeX Workshop, LTeX+)
+      # Root needs --no-sandbox and an explicit --user-data-dir.
+      command: >
+        /usr/bin/code --no-sandbox
+        --user-data-dir /tmp/vscode-build-userdata
+        --extensions-dir /opt/vscode-extensions
+        --install-extension {{ item }}
+      loop:
+        - James-Yu.latex-workshop
+        - ltex-plus.vscode-ltex-plus
+
+    - name: Make extensions writable by the runtime user
+      command: chmod -R a+rwX /opt/vscode-extensions
+
+    - name: Cleanup temporary VS Code user data
+      file:
+        path: /tmp/vscode-build-userdata
+        state: absent
+
+    - name: Register LaTeX launcher
+      copy:
+        dest: /opt/launcher/apps/latex.json
+        content: |
+          {
+            "name": "LaTeX",
+            "cmd": ["/usr/bin/code", "--disable-gpu", "/data/latex"],
+            "color": "#008080",
+            "env": {
+              "XDG_CONFIG_HOME": "/data/vscode/config",
+              "VSCODE_EXTENSIONS": "/opt/vscode-extensions"
+            }
+          }
+
+- name: Setup LaTeX at startup
+  hosts: localhost
+  connection: local
+  tags: startup
+  tasks:
+    - name: Create LaTeX and VS Code settings directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        mode: '0755'
+      loop:
+        - /data/latex
+        - /data/vscode
+        - /data/vscode/config
+        - /data/vscode/config/Code
+        - /data/vscode/config/Code/User
+
+    - name: Write default LaTeX settings (only if no settings.json exists)
+      copy:
+        dest: /data/vscode/config/Code/User/settings.json
+        force: no
+        owner: "{{ lookup('env', 'PUID') }}"
+        group: "{{ lookup('env', 'PGID') }}"
+        content: |
+          {
+            "latex-workshop.view.pdf.viewer": "tab",
+            "latex-workshop.latex.autoBuild.run": "onSave",
+            "latex-workshop.latex.outDir": "%DIR%/build",
+            "ltex.language": "en-US"
+          }

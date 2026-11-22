@@ -9,5 +9,6 @@ apps:
   - chrome
   - desktop
   - vscode
+  - latex
   - syncthing
   - nautilus
