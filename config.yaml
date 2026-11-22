@@ -2,13 +2,13 @@
 # Comment out any app you don't want installed
 
 apps:
-  # - freecad
+  - freecad
   - terminal
-  # - zotero
-  # - obsidian
-  # - chrome
-  # - desktop
+  - zotero
+  - obsidian
+  - chrome
+  - desktop
   - vscode
   - latex
-  # - syncthing
-  # - nautilus
+  - syncthing
+  - nautilus
